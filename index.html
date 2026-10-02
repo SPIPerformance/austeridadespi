@@ -68,8 +68,8 @@ body{
 }
 .panel h2{font-weight:600;font-size:14px;margin:0 0 14px;color:var(--ink);}
 
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px;}
-@media (max-width:1100px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+@media (max-width:1100px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
 .kpi{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:12px 14px;}
 .kpi .label{font-size:11px;color:var(--ink-dim);white-space:nowrap;}
 .kpi .value{font-family:var(--font-mono);font-weight:600;font-size:18px;color:var(--ink);margin-top:4px;}
@@ -90,10 +90,6 @@ tbody tr:hover{background:#EAF0F6;}
   background:var(--panel);border:1px solid var(--line);border-radius:4px;color:var(--ink);
   padding:7px 10px;font-family:var(--font-body);font-size:12.3px;min-width:140px;
 }
-.btn-ghost{
-  background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:4px;
-  font-weight:500;font-size:12.5px;padding:8px 13px;cursor:pointer;
-}
 .tab-content{display:none;}
 .tab-content.active{display:block;}
 .section-gap{height:14px;}
@@ -106,7 +102,7 @@ tbody tr:hover{background:#EAF0F6;}
     <div>
       <div class="tb-name">Painel de Austeridade · Comercial & Real x Orçado</div>
     </div>
-    <div class="tb-meta" id="tbMeta">Carregando dados do GitHub...</div>
+    <div class="tb-meta" id="tbMeta">A carregar dados do GitHub...</div>
   </div>
 
   <div class="tabs">
@@ -123,7 +119,6 @@ tbody tr:hover{background:#EAF0F6;}
       <div class="kpi"><div class="label">Total Orçado Mês</div><div class="value" id="kpiOrcMes">R$ 0</div></div>
       <div class="kpi"><div class="label">Desvio Mês</div><div class="value" id="kpiDesvMes">0%</div></div>
       <div class="kpi"><div class="label">VGV Mês</div><div class="value" id="kpiVgvMes">R$ 0</div></div>
-      <div class="kpi"><div class="label">Qtd Lançamentos</div><div class="value" id="kpiQtdMes">0</div></div>
     </div>
     <div class="panel">
       <h2>Visão Mensal por Pacote, Subpacote e Regional</h2>
@@ -155,7 +150,6 @@ tbody tr:hover{background:#EAF0F6;}
       <div class="kpi"><div class="label">Total Orçado Acumulado</div><div class="value" id="kpiOrcAcum">R$ 0</div></div>
       <div class="kpi"><div class="label">Desvio Acumulado</div><div class="value" id="kpiDesvAcum">0%</div></div>
       <div class="kpi"><div class="label">VGV Acumulado</div><div class="value" id="kpiVgvAcum">R$ 0</div></div>
-      <div class="kpi"><div class="label">Qtd Lançamentos</div><div class="value" id="kpiQtdAcum">0</div></div>
     </div>
     <div class="panel">
       <h2>Visão Acumulada por Pacote, Subpacote e Regional</h2>
@@ -221,9 +215,9 @@ async function loadAllData() {
       fetch(URL_VGV)
     ]);
 
-    if(!resRealOrc.ok) throw new Error("Erro ao carregar Base Real x Orçado");
-    if(!resParam.ok) throw new Error("Erro ao carregar Parametro Austeridade");
-    if(!resVgv.ok) throw new Error("Erro ao carregar VGV Austeridade");
+    if(!resRealOrc.ok) throw new Error(`Erro Real x Orçado (${resRealOrc.status})`);
+    if(!resParam.ok) throw new Error(`Erro Parâmetro (${resParam.status})`);
+    if(!resVgv.ok) throw new Error(`Erro VGV (${resVgv.status})`);
 
     const [bufRealOrc, bufParam, bufVgv] = await Promise.all([
       resRealOrc.arrayBuffer(),
@@ -238,7 +232,7 @@ async function loadAllData() {
     deparaMap = {};
     for(let i=1; i<paramRows.length; i++) {
       const r = paramRows[i];
-      if(r && r[27] && r[29]) { // Colunas regional e RegionalComercial ou GST
+      if(r && r[27] && r[29]) {
         const gestao = String(r[27]).trim();
         const regional = String(r[29]).trim();
         if(gestao && regional) deparaMap[gestao] = regional;
@@ -249,7 +243,6 @@ async function loadAllData() {
     const wbVgv = XLSX.read(bufVgv, {type: 'array'});
     const wsVgv = wbVgv.Sheets['VGV'] || wbVgv.Sheets[wbVgv.SheetNames[0]];
     const vgvRows = XLSX.utils.sheet_to_json(wsVgv, {header: 1});
-    // Mapear VGV por regional
     for(let i=1; i<vgvRows.length; i++) {
       const r = vgvRows[i];
       if(r && r[1]) {
@@ -284,7 +277,7 @@ async function loadAllData() {
 
   } catch(err) {
     console.error(err);
-    tbMeta.innerHTML = `<span style="color:var(--crit-fg);">Erro ao carregar dados do GitHub</span>`;
+    tbMeta.innerHTML = `<span style="color:var(--crit-fg);">Erro ao carregar dados do GitHub (Verifique CORS / Ficheiros)</span>`;
   }
 }
 
@@ -312,7 +305,6 @@ function renderTables() {
     return true;
   });
 
-  // Agrupar Mês por Regional, Pacote, Subpacote
   let groupMes = {};
   subsetMes.forEach(d => {
     const key = `${d.regional}|${d.pacote}|${d.subpacote}`;
@@ -347,7 +339,6 @@ function renderTables() {
   document.getElementById('kpiOrcMes').textContent = `R$ ${totOrcMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
   document.getElementById('kpiDesvMes').textContent = totOrcMes ? (((totRealMes - totOrcMes)/totOrcMes)*100).toFixed(2) + '%' : '0%';
   document.getElementById('kpiVgvMes').textContent = `R$ ${totVgvMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-  document.getElementById('kpiQtdMes').textContent = subsetMes.length;
 
   // Filtros Acumulado
   const regAcumSel = document.getElementById('filterRegionalAcum').value;
@@ -393,7 +384,6 @@ function renderTables() {
   document.getElementById('kpiOrcAcum').textContent = `R$ ${totOrcAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
   document.getElementById('kpiDesvAcum').textContent = totOrcAcum ? (((totRealAcum - totOrcAcum)/totOrcAcum)*100).toFixed(2) + '%' : '0%';
   document.getElementById('kpiVgvAcum').textContent = `R$ ${totVgvAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-  document.getElementById('kpiQtdAcum').textContent = subsetAcum.length;
 }
 </script>
 </body>
