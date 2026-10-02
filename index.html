@@ -93,6 +93,7 @@ tbody tr:hover{background:#EAF0F6;}
 .tab-content{display:none;}
 .tab-content.active{display:block;}
 .section-gap{height:14px;}
+.table-scroll{overflow-x:auto;}
 </style>
 </head>
 <body>
@@ -123,7 +124,20 @@ tbody tr:hover{background:#EAF0F6;}
     <div class="panel">
       <h2>Visão Mensal por Pacote, Subpacote e Regional</h2>
       <div class="filters">
-        <select id="filterMes"><option value="8">Agosto / 2026</option></select>
+        <select id="filterMes">
+          <option value="1">Janeiro</option>
+          <option value="2">Fevereiro</option>
+          <option value="3">Março</option>
+          <option value="4">Abril</option>
+          <option value="5">Maio</option>
+          <option value="6">Junho</option>
+          <option value="7">Julho</option>
+          <option value="8" selected>Agosto</option>
+          <option value="9">Setembro</option>
+          <option value="10">Outubro</option>
+          <option value="11">Novembro</option>
+          <option value="12">Dezembro</option>
+        </select>
         <select id="filterRegionalMes"><option value="">Todas as regionais</option></select>
         <input type="text" id="filterPacoteMes" placeholder="🔍 Filtrar pacote...">
       </div>
@@ -180,7 +194,6 @@ const GITHUB_USER = "SPIPerformance";
 const GITHUB_REPO = "reavaliacaospi";
 const GITHUB_BRANCH = "main";
 
-const URL_CONTABIL = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/Base%20Lan%C3%A7amento%20Cont%C3%A1bil.xlsx`;
 const URL_REALORC = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/Base%20Real%20x%20Or%C3%A7ado%20-%20Desdobrado%20em%20Centro%20de%20Custo%20e%20Conta%20Cont%C3%A1bil.xlsx`;
 const URL_PARAM = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/Parametro%20Austeridade.xlsx`;
 const URL_VGV = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/VGV%20Austeridade.xlsx`;
@@ -188,6 +201,21 @@ const URL_VGV = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}
 let globalDataRealOrc = [];
 let globalDataVgv = {};
 let deparaMap = {};
+
+const MONTH_VGV_COLS = {
+  1: { meta: 2, real: 3 },
+  2: { meta: 4, real: 5 },
+  3: { meta: 6, real: 7 },
+  4: { meta: 8, real: 9 },
+  5: { meta: 10, real: 11 },
+  6: { meta: 12, real: 13 },
+  7: { meta: 14, real: 15 },
+  8: { meta: 16, real: 17 },
+  9: { meta: 18, real: 19 },
+  10: { meta: 20, real: 21 },
+  11: { meta: 22, real: 23 },
+  12: { meta: 24, real: 25 },
+};
 
 function switchTab(tabName, evt) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -225,32 +253,47 @@ async function loadAllData() {
       resVgv.arrayBuffer()
     ]);
 
-    // Parse Parametro
+    // Parse Parametro Austeridade
     const wbParam = XLSX.read(bufParam, {type: 'array'});
     const wsParam = wbParam.Sheets['PARAMETRO'] || wbParam.Sheets[wbParam.SheetNames[0]];
     const paramRows = XLSX.utils.sheet_to_json(wsParam, {header: 1});
     deparaMap = {};
     for(let i=1; i<paramRows.length; i++) {
       const r = paramRows[i];
-      if(r && r[27] && r[29]) {
-        const gestao = String(r[27]).trim();
-        const regional = String(r[29]).trim();
-        if(gestao && regional) deparaMap[gestao] = regional;
+      if(r) {
+        const gst = String(r[27] || '').trim();
+        const reg = String(r[29] || '').trim();
+        if(gst && reg && reg !== 'nan') deparaMap[gst] = reg;
+      }
+    }
+    // Adicionar mapeamento direto das colunas 32 e 33 se existirem
+    for(let i=1; i<paramRows.length; i++) {
+      const r = paramRows[i];
+      if(r && r[32] && r[33]) {
+        deparaMap[String(r[32]).trim()] = String(r[33]).trim();
       }
     }
 
-    // Parse VGV
+    // Parse VGV Austeridade
     const wbVgv = XLSX.read(bufVgv, {type: 'array'});
     const wsVgv = wbVgv.Sheets['VGV'] || wbVgv.Sheets[wbVgv.SheetNames[0]];
     const vgvRows = XLSX.utils.sheet_to_json(wsVgv, {header: 1});
-    for(let i=1; i<vgvRows.length; i++) {
+    globalDataVgv = {};
+    for(let i=2; i<vgvRows.length; i++) {
       const r = vgvRows[i];
       if(r && r[1]) {
         const reg = String(r[1]).trim();
         globalDataVgv[reg] = {
           mesReal: Number(r[29] || 0),
-          acumReal: Number(r[27] || 0)
+          acumReal: Number(r[27] || 0),
+          mensalRealMap: {}
         };
+        for(let m=1; m<=12; m++) {
+          const colIdx = MONTH_VGV_COLS[m]?.real;
+          if(colIdx !== undefined) {
+            globalDataVgv[reg].mensalRealMap[m] = Number(r[colIdx] || 0);
+          }
+        }
       }
     }
 
@@ -262,7 +305,11 @@ async function loadAllData() {
     globalDataRealOrc = realOrcRows.map(row => {
       const mes = Number(row['Mês'] || 8);
       const gestao = String(row['Gestão'] || '').trim();
-      const regional = deparaMap[gestao] || 'SP INT 1';
+      let regional = deparaMap[gestao] || 'SP INT 1';
+      // Unificar Sensias conforme instrução
+      if(regional.toUpperCase().includes('SENSIA')) {
+        regional = 'SENSIA';
+      }
       const pacote = String(row['Pacote'] || 'OUTROS').trim();
       const subpacote = String(row['Subpacote'] || 'OUTROS').trim();
       const realVal = Number(row['Real 26'] || 0);
@@ -277,7 +324,7 @@ async function loadAllData() {
 
   } catch(err) {
     console.error(err);
-    tbMeta.innerHTML = `<span style="color:var(--crit-fg);">Erro ao carregar dados do GitHub (Verifique CORS / Ficheiros)</span>`;
+    tbMeta.innerHTML = `<span style="color:var(--crit-fg);">Erro ao carregar dados do GitHub</span>`;
   }
 }
 
@@ -293,11 +340,11 @@ function populateRegionFilters() {
 }
 
 function renderTables() {
-  // Filtros Mês
   const mesSel = Number(document.getElementById('filterMes').value);
   const regMesSel = document.getElementById('filterRegionalMes').value;
   const pacMesFilter = document.getElementById('filterPacoteMes').value.toLowerCase();
 
+  // Filtrar Mês atual (ou meses até o selecionado para o acumulado)
   const subsetMes = globalDataRealOrc.filter(d => {
     if(d.mes !== mesSel) return false;
     if(regMesSel && d.regional !== regMesSel) return false;
@@ -320,7 +367,7 @@ function renderTables() {
   Object.values(groupMes).forEach(item => {
     totRealMes += item.real;
     totOrcMes += item.orc;
-    const vgvItem = globalDataVgv[item.regional]?.mesReal || 0;
+    const vgvItem = globalDataVgv[item.regional]?.mensalRealMap?.[mesSel] || globalDataVgv[item.regional]?.mesReal || 0;
     totVgvMes += vgvItem;
 
     const tr = document.createElement('tr');
@@ -328,9 +375,9 @@ function renderTables() {
       <td class="left">${item.regional}</td>
       <td class="left">${item.pacote}</td>
       <td class="left">${item.subpacote}</td>
-      <td>R$ ${item.real.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
-      <td>R$ ${item.orc.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
-      <td>R$ ${vgvItem.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+      <td>R$ ${item.real.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      <td>R$ ${item.orc.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      <td>R$ ${vgvItem.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
     `;
     tbodyMes.appendChild(tr);
   });
@@ -340,11 +387,12 @@ function renderTables() {
   document.getElementById('kpiDesvMes').textContent = totOrcMes ? (((totRealMes - totOrcMes)/totOrcMes)*100).toFixed(2) + '%' : '0%';
   document.getElementById('kpiVgvMes').textContent = `R$ ${totVgvMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
 
-  // Filtros Acumulado
+  // Acumulado (meses <= mesSel)
   const regAcumSel = document.getElementById('filterRegionalAcum').value;
   const pacAcumFilter = document.getElementById('filterPacoteAcum').value.toLowerCase();
 
   const subsetAcum = globalDataRealOrc.filter(d => {
+    if(d.mes > mesSel) return false;
     if(regAcumSel && d.regional !== regAcumSel) return false;
     if(pacAcumFilter && !d.pacote.toLowerCase().includes(pacAcumFilter)) return false;
     return true;
@@ -373,9 +421,9 @@ function renderTables() {
       <td class="left">${item.regional}</td>
       <td class="left">${item.pacote}</td>
       <td class="left">${item.subpacote}</td>
-      <td>R$ ${item.real.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
-      <td>R$ ${item.orc.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
-      <td>R$ ${vgvItemAcum.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+      <td>R$ ${item.real.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      <td>R$ ${item.orc.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+      <td>R$ ${vgvItemAcum.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
     `;
     tbodyAcum.appendChild(tr);
   });
