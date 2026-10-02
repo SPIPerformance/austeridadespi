@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel de Austeridade · Bússola</title>
+<title>Painel de Austeridade · Comercial & Real x Orçado</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -106,24 +106,31 @@ tbody tr:hover{background:#EAF0F6;}
     <div>
       <div class="tb-name">Painel de Austeridade · Comercial & Real x Orçado</div>
     </div>
-    <div class="tb-meta" id="tbMeta">Conectando ao GitHub...</div>
+    <div class="tb-meta" id="tbMeta">Carregando dados do GitHub...</div>
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('mes')">Fechado por Mês</button>
-    <button class="tab-btn" onclick="switchTab('acumulado')">Acumulado</button>
+    <button class="tab-btn active" onclick="switchTab('mes', event)">Fechado por Mês</button>
+    <button class="tab-btn" onclick="switchTab('acumulado', event)">Acumulado</button>
   </div>
 
   <div class="section-gap"></div>
 
   <!-- ABA FECHADO POR MÊS -->
   <div id="tab-mes" class="tab-content active">
-    <div class="kpi-row" id="kpiRowMes"></div>
+    <div class="kpi-row" id="kpiRowMes">
+      <div class="kpi"><div class="label">Total Real Mês</div><div class="value" id="kpiRealMes">R$ 0</div></div>
+      <div class="kpi"><div class="label">Total Orçado Mês</div><div class="value" id="kpiOrcMes">R$ 0</div></div>
+      <div class="kpi"><div class="label">Desvio Mês</div><div class="value" id="kpiDesvMes">0%</div></div>
+      <div class="kpi"><div class="label">VGV Mês</div><div class="value" id="kpiVgvMes">R$ 0</div></div>
+      <div class="kpi"><div class="label">Qtd Lançamentos</div><div class="value" id="kpiQtdMes">0</div></div>
+    </div>
     <div class="panel">
-      <h2>Visão Mensal por Pacote e Regional (Incluindo VGV)</h2>
+      <h2>Visão Mensal por Pacote, Subpacote e Regional</h2>
       <div class="filters">
         <select id="filterMes"><option value="8">Agosto / 2026</option></select>
         <select id="filterRegionalMes"><option value="">Todas as regionais</option></select>
+        <input type="text" id="filterPacoteMes" placeholder="🔍 Filtrar pacote...">
       </div>
       <div class="table-scroll">
         <table id="tableMes">
@@ -143,11 +150,18 @@ tbody tr:hover{background:#EAF0F6;}
 
   <!-- ABA ACUMULADO -->
   <div id="tab-acumulado" class="tab-content">
-    <div class="kpi-row" id="kpiRowAcum"></div>
+    <div class="kpi-row" id="kpiRowAcum">
+      <div class="kpi"><div class="label">Total Real Acumulado</div><div class="value" id="kpiRealAcum">R$ 0</div></div>
+      <div class="kpi"><div class="label">Total Orçado Acumulado</div><div class="value" id="kpiOrcAcum">R$ 0</div></div>
+      <div class="kpi"><div class="label">Desvio Acumulado</div><div class="value" id="kpiDesvAcum">0%</div></div>
+      <div class="kpi"><div class="label">VGV Acumulado</div><div class="value" id="kpiVgvAcum">R$ 0</div></div>
+      <div class="kpi"><div class="label">Qtd Lançamentos</div><div class="value" id="kpiQtdAcum">0</div></div>
+    </div>
     <div class="panel">
-      <h2>Visão Acumulada por Pacote e Regional (Incluindo VGV)</h2>
+      <h2>Visão Acumulada por Pacote, Subpacote e Regional</h2>
       <div class="filters">
         <select id="filterRegionalAcum"><option value="">Todas as regionais</option></select>
+        <input type="text" id="filterPacoteAcum" placeholder="🔍 Filtrar pacote...">
       </div>
       <div class="table-scroll">
         <table id="tableAcum">
@@ -177,22 +191,210 @@ const URL_REALORC = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_R
 const URL_PARAM = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/Parametro%20Austeridade.xlsx`;
 const URL_VGV = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/VGV%20Austeridade.xlsx`;
 
-function switchTab(tabName) {
+let globalDataRealOrc = [];
+let globalDataVgv = {};
+let deparaMap = {};
+
+function switchTab(tabName, evt) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-  if(tabName === 'mes') {
-    document.getElementById('tab-mes').classList.add('active');
-    event.currentTarget.classList.add('active');
-  } else {
-    document.getElementById('tab-acumulado').classList.add('active');
-    event.currentTarget.classList.add('active');
-  }
+  document.getElementById('tab-' + tabName).classList.add('active');
+  if(evt) evt.currentTarget.classList.add('active');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('tbMeta').innerHTML = `Atualizado: <b>${new Date().toLocaleDateString('pt-BR')}</b>`;
-  // Integração com os arquivos do GitHub via XLSX.read pode ser inicializada aqui seguindo o padrão do seu index.html anterior.
+  document.getElementById('filterMes').addEventListener('change', renderTables);
+  document.getElementById('filterRegionalMes').addEventListener('change', renderTables);
+  document.getElementById('filterPacoteMes').addEventListener('input', renderTables);
+  document.getElementById('filterRegionalAcum').addEventListener('change', renderTables);
+  document.getElementById('filterPacoteAcum').addEventListener('input', renderTables);
+
+  loadAllData();
 });
+
+async function loadAllData() {
+  const tbMeta = document.getElementById('tbMeta');
+  try {
+    const [resRealOrc, resParam, resVgv] = await Promise.all([
+      fetch(URL_REALORC),
+      fetch(URL_PARAM),
+      fetch(URL_VGV)
+    ]);
+
+    if(!resRealOrc.ok) throw new Error("Erro ao carregar Base Real x Orçado");
+    if(!resParam.ok) throw new Error("Erro ao carregar Parametro Austeridade");
+    if(!resVgv.ok) throw new Error("Erro ao carregar VGV Austeridade");
+
+    const [bufRealOrc, bufParam, bufVgv] = await Promise.all([
+      resRealOrc.arrayBuffer(),
+      resParam.arrayBuffer(),
+      resVgv.arrayBuffer()
+    ]);
+
+    // Parse Parametro
+    const wbParam = XLSX.read(bufParam, {type: 'array'});
+    const wsParam = wbParam.Sheets['PARAMETRO'] || wbParam.Sheets[wbParam.SheetNames[0]];
+    const paramRows = XLSX.utils.sheet_to_json(wsParam, {header: 1});
+    deparaMap = {};
+    for(let i=1; i<paramRows.length; i++) {
+      const r = paramRows[i];
+      if(r && r[27] && r[29]) { // Colunas regional e RegionalComercial ou GST
+        const gestao = String(r[27]).trim();
+        const regional = String(r[29]).trim();
+        if(gestao && regional) deparaMap[gestao] = regional;
+      }
+    }
+
+    // Parse VGV
+    const wbVgv = XLSX.read(bufVgv, {type: 'array'});
+    const wsVgv = wbVgv.Sheets['VGV'] || wbVgv.Sheets[wbVgv.SheetNames[0]];
+    const vgvRows = XLSX.utils.sheet_to_json(wsVgv, {header: 1});
+    // Mapear VGV por regional
+    for(let i=1; i<vgvRows.length; i++) {
+      const r = vgvRows[i];
+      if(r && r[1]) {
+        const reg = String(r[1]).trim();
+        globalDataVgv[reg] = {
+          mesReal: Number(r[29] || 0),
+          acumReal: Number(r[27] || 0)
+        };
+      }
+    }
+
+    // Parse Real x Orçado
+    const wbRealOrc = XLSX.read(bufRealOrc, {type: 'array'});
+    const wsRealOrc = wbRealOrc.Sheets['Export'] || wbRealOrc.Sheets[wbRealOrc.SheetNames[0]];
+    const realOrcRows = XLSX.utils.sheet_to_json(wsRealOrc);
+
+    globalDataRealOrc = realOrcRows.map(row => {
+      const mes = Number(row['Mês'] || 8);
+      const gestao = String(row['Gestão'] || '').trim();
+      const regional = deparaMap[gestao] || 'SP INT 1';
+      const pacote = String(row['Pacote'] || 'OUTROS').trim();
+      const subpacote = String(row['Subpacote'] || 'OUTROS').trim();
+      const realVal = Number(row['Real 26'] || 0);
+      const orcVal = Number(row['Orç 26'] || 0);
+
+      return { mes, regional, pacote, subpacote, realVal, orcVal };
+    });
+
+    tbMeta.innerHTML = `Atualizado: <b>${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</b>`;
+    populateRegionFilters();
+    renderTables();
+
+  } catch(err) {
+    console.error(err);
+    tbMeta.innerHTML = `<span style="color:var(--crit-fg);">Erro ao carregar dados do GitHub</span>`;
+  }
+}
+
+function populateRegionFilters() {
+  const regionSet = Array.from(new Set(globalDataRealOrc.map(d => d.regional))).sort();
+  const selMes = document.getElementById('filterRegionalMes');
+  const selAcum = document.getElementById('filterRegionalAcum');
+  
+  regionSet.forEach(reg => {
+    selMes.innerHTML += `<option value="${reg}">${reg}</option>`;
+    selAcum.innerHTML += `<option value="${reg}">${reg}</option>`;
+  });
+}
+
+function renderTables() {
+  // Filtros Mês
+  const mesSel = Number(document.getElementById('filterMes').value);
+  const regMesSel = document.getElementById('filterRegionalMes').value;
+  const pacMesFilter = document.getElementById('filterPacoteMes').value.toLowerCase();
+
+  const subsetMes = globalDataRealOrc.filter(d => {
+    if(d.mes !== mesSel) return false;
+    if(regMesSel && d.regional !== regMesSel) return false;
+    if(pacMesFilter && !d.pacote.toLowerCase().includes(pacMesFilter)) return false;
+    return true;
+  });
+
+  // Agrupar Mês por Regional, Pacote, Subpacote
+  let groupMes = {};
+  subsetMes.forEach(d => {
+    const key = `${d.regional}|${d.pacote}|${d.subpacote}`;
+    if(!groupMes[key]) groupMes[key] = { regional: d.regional, pacote: d.pacote, subpacote: d.subpacote, real: 0, orc: 0 };
+    groupMes[key].real += d.realVal;
+    groupMes[key].orc += d.orcVal;
+  });
+
+  let tbodyMes = document.getElementById('tbodyMes');
+  tbodyMes.innerHTML = '';
+  let totRealMes = 0, totOrcMes = 0, totVgvMes = 0;
+
+  Object.values(groupMes).forEach(item => {
+    totRealMes += item.real;
+    totOrcMes += item.orc;
+    const vgvItem = globalDataVgv[item.regional]?.mesReal || 0;
+    totVgvMes += vgvItem;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="left">${item.regional}</td>
+      <td class="left">${item.pacote}</td>
+      <td class="left">${item.subpacote}</td>
+      <td>R$ ${item.real.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+      <td>R$ ${item.orc.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+      <td>R$ ${vgvItem.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+    `;
+    tbodyMes.appendChild(tr);
+  });
+
+  document.getElementById('kpiRealMes').textContent = `R$ ${totRealMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
+  document.getElementById('kpiOrcMes').textContent = `R$ ${totOrcMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
+  document.getElementById('kpiDesvMes').textContent = totOrcMes ? (((totRealMes - totOrcMes)/totOrcMes)*100).toFixed(2) + '%' : '0%';
+  document.getElementById('kpiVgvMes').textContent = `R$ ${totVgvMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
+  document.getElementById('kpiQtdMes').textContent = subsetMes.length;
+
+  // Filtros Acumulado
+  const regAcumSel = document.getElementById('filterRegionalAcum').value;
+  const pacAcumFilter = document.getElementById('filterPacoteAcum').value.toLowerCase();
+
+  const subsetAcum = globalDataRealOrc.filter(d => {
+    if(regAcumSel && d.regional !== regAcumSel) return false;
+    if(pacAcumFilter && !d.pacote.toLowerCase().includes(pacAcumFilter)) return false;
+    return true;
+  });
+
+  let groupAcum = {};
+  subsetAcum.forEach(d => {
+    const key = `${d.regional}|${d.pacote}|${d.subpacote}`;
+    if(!groupAcum[key]) groupAcum[key] = { regional: d.regional, pacote: d.pacote, subpacote: d.subpacote, real: 0, orc: 0 };
+    groupAcum[key].real += d.realVal;
+    groupAcum[key].orc += d.orcVal;
+  });
+
+  let tbodyAcum = document.getElementById('tbodyAcum');
+  tbodyAcum.innerHTML = '';
+  let totRealAcum = 0, totOrcAcum = 0, totVgvAcum = 0;
+
+  Object.values(groupAcum).forEach(item => {
+    totRealAcum += item.real;
+    totOrcAcum += item.orc;
+    const vgvItemAcum = globalDataVgv[item.regional]?.acumReal || 0;
+    totVgvAcum += vgvItemAcum;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="left">${item.regional}</td>
+      <td class="left">${item.pacote}</td>
+      <td class="left">${item.subpacote}</td>
+      <td>R$ ${item.real.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+      <td>R$ ${item.orc.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+      <td>R$ ${vgvItemAcum.toLocaleString('pt-BR', {maximumFractionDigits:2})}</td>
+    `;
+    tbodyAcum.appendChild(tr);
+  });
+
+  document.getElementById('kpiRealAcum').textContent = `R$ ${totRealAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
+  document.getElementById('kpiOrcAcum').textContent = `R$ ${totOrcAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
+  document.getElementById('kpiDesvAcum').textContent = totOrcAcum ? (((totRealAcum - totOrcAcum)/totOrcAcum)*100).toFixed(2) + '%' : '0%';
+  document.getElementById('kpiVgvAcum').textContent = `R$ ${totVgvAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
+  document.getElementById('kpiQtdAcum').textContent = subsetAcum.length;
+}
 </script>
 </body>
 </html>
