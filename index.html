@@ -3,436 +3,276 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Painel de Austeridade · Comercial & Real x Orçado</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<title>Painel de Austeridade · Diretoria SPI</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{
-  --bg:#EEEFF1;
-  --panel:#FFFFFF;
-  --panel-alt:#F5F6F7;
-  --line:#D7D9DC;
-  --line-soft:#E7E8EA;
-  --ink:#26282B;
-  --ink-dim:#65686D;
-  --ink-faint:#9A9DA2;
-  --accent:#4B5563;
-  --accent-dark:#2E3338;
-  --mrv-green:#006B3F;
-  --mrv-orange:#FF8B22;
-  --ok-bg:#DCEFDD; --ok-fg:#1E7A34;
-  --warn-bg:#FBEBC7; --warn-fg:#8A5A00;
-  --crit-bg:#F8D7D7; --crit-fg:#B3261E;
-  --font-body:'IBM Plex Sans',sans-serif;
-  --font-mono:'IBM Plex Mono',monospace;
-}
-*{box-sizing:border-box;}
-html,body{margin:0;padding:0;}
-body{
-  background:var(--bg);
-  color:var(--ink);
-  font-family:var(--font-body);
-  font-size:13.5px;
-  line-height:1.5;
-  -webkit-font-smoothing:antialiased;
-  min-height:100vh;
-}
-.shell{max-width:1320px;margin:0 auto;padding:20px 20px 60px;}
-
-.titleblock{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:6px;
-  display:flex;justify-content:space-between;align-items:flex-end;
-  padding:18px 22px;gap:24px;flex-wrap:wrap;
-}
-.tb-name{font-weight:700;font-size:22px;letter-spacing:-0.2px;color:var(--ink);}
-.tb-meta{font-family:var(--font-mono);font-size:12px;color:var(--ink-dim);text-align:right;}
-
-/* Abas */
-.tabs{display:flex;gap:8px;margin-top:16px;border-bottom:1px solid var(--line);padding-bottom:10px;}
-.tab-btn{
-  background:var(--panel);border:1px solid var(--line);padding:8px 16px;border-radius:4px;
-  font-weight:600;cursor:pointer;color:var(--ink-dim);
-}
-.tab-btn.active{background:var(--mrv-green);color:#fff;border-color:var(--mrv-green);}
-
-.panel{
-  border:1px solid var(--line);
-  background:var(--panel);
-  border-radius:6px;
-  padding:18px 20px;
-  margin-top:14px;
-}
-.panel h2{font-weight:600;font-size:14px;margin:0 0 14px;color:var(--ink);}
-
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
-@media (max-width:1100px){.kpi-row{grid-template-columns:repeat(2,1fr);}}
-.kpi{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:12px 14px;}
-.kpi .label{font-size:11px;color:var(--ink-dim);white-space:nowrap;}
-.kpi .value{font-family:var(--font-mono);font-weight:600;font-size:18px;color:var(--ink);margin-top:4px;}
-
-table{width:100%;border-collapse:collapse;font-size:12.8px;}
-thead th{
-  text-align:right;font-weight:700;font-size:11.5px;
-  color:#fff;background:var(--mrv-green);border-bottom:1px solid var(--mrv-green);padding:9px 10px;
-  white-space:nowrap;
-}
-thead th.left, td.left{text-align:left;}
-tbody td{padding:7px 10px;border-bottom:1px solid var(--line-soft);text-align:right;font-family:var(--font-mono);font-size:12.3px;white-space:nowrap;}
-tbody td.left{text-align:left;font-family:var(--font-body);}
-tbody tr:hover{background:#EAF0F6;}
-
-.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
-.filters select, .filters input[type=text]{
-  background:var(--panel);border:1px solid var(--line);border-radius:4px;color:var(--ink);
-  padding:7px 10px;font-family:var(--font-body);font-size:12.3px;min-width:140px;
-}
-.tab-content{display:none;}
-.tab-content.active{display:block;}
-.section-gap{height:14px;}
-.table-scroll{overflow-x:auto;}
+:root{--bg:#F1F3F6;--panel:#fff;--alt:#F8F9FA;--line:#E2E5E9;--soft:#ECEEF1;--ink:#1F242D;--dim:#646D7A;--green:#006B3F;--ok:#137333;--warn:#B06000;--crit:#C5221F;
+--font:'Averta Demo','IBM Plex Sans',sans-serif;--bold:'Averta-Bold','Averta Demo','IBM Plex Sans',sans-serif;--black:'Averta-Black','Averta Demo','IBM Plex Sans',sans-serif;--mono:'IBM Plex Mono',monospace}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+.shell{max-width:1320px;margin:0 auto;padding:24px 24px 60px}
+.titleblock,.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.titleblock{display:flex;justify-content:space-between;align-items:flex-end;padding:20px 24px;gap:24px;flex-wrap:wrap;margin-bottom:16px}
+.tb-name{font-family:var(--black);font-weight:900;font-size:24px;color:#FF8B22}
+.tb-meta{font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--alt);padding:6px 10px;border-radius:6px;border:1px solid var(--soft)}
+.panel{padding:22px 24px;margin-bottom:16px}
+.panel h2{font-family:var(--bold);font-size:15px;margin:0 0 14px}
+.tabs-nav{display:flex;gap:8px;margin-bottom:16px}
+.tab-btn{font-family:var(--bold);font-weight:700;background:#E5E8ED;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;padding:10px 22px;font-size:13.5px;cursor:pointer;color:var(--dim)}
+.tab-btn.active{background:var(--panel);color:var(--green)}
+.tab-content{display:none}.tab-content.active{display:block}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.filters label{font-family:var(--bold);font-size:11.5px;color:var(--dim)}
+select,input[type=text]{background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:8px 12px;font-family:var(--font);font-size:12.3px}
+input[type=text]{min-width:240px}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:6px;font-size:11.5px;padding:6px 12px;cursor:pointer}.btn:hover{border-color:var(--green);color:var(--green)}
+.kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:1100px){.kpi-row{grid-template-columns:repeat(4,1fr)}}@media(max-width:700px){.kpi-row{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--green);border-radius:8px;padding:14px 16px;color:#fff}
+.kpi .label{font-family:var(--bold);font-weight:700;font-size:11px;white-space:nowrap}
+.kpi .value{font-family:var(--black);font-weight:900;font-size:17px;margin-top:6px}
+.table-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.8px}
+thead th{font-family:var(--bold);text-align:right;font-weight:700;font-size:11.5px;color:#fff;background:var(--green);padding:10px 12px;white-space:nowrap}
+th.left,td.left{text-align:left}
+tbody td{padding:7px 12px;border-bottom:1px solid var(--soft);text-align:right;font-family:var(--mono);font-size:12.3px;white-space:nowrap}
+td.left{font-family:var(--font)}
+tbody tr:hover{background:#F0F4F8}
+tr.l0{background:#F4F7F5;font-weight:600}tr.l2{font-size:12px;color:#444}tr.tg{cursor:pointer}
+tr.tot{background:#E6EFEA;font-weight:700}
+.tt{display:inline-block;width:18px;font-weight:bold;color:var(--green);text-align:center}
+.neg{color:var(--crit)}.pos{color:var(--ok)}
+.fd{display:inline-block;width:12px;height:12px;border-radius:50%}
+.f-r{background:#C5221F}.f-y{background:#F2B01E}.f-g{background:#1E9E5A}
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+.note{font-size:11.5px;color:var(--dim);margin-top:10px}
+#dashboard,#fallback{display:none}#dashboard.visible,#fallback.visible{display:block}
 </style>
 </head>
 <body>
 <div class="shell">
-
   <div class="titleblock">
-    <div>
-      <div class="tb-name">Painel de Austeridade · Comercial & Real x Orçado</div>
-    </div>
-    <div class="tb-meta" id="tbMeta">A carregar dados do GitHub...</div>
+    <div class="tb-name">Painel de Austeridade · Diretoria SPI</div>
+    <div class="tb-meta" id="tbMeta">Conectando ao GitHub...</div>
   </div>
 
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('mes', event)">Fechado por Mês</button>
-    <button class="tab-btn" onclick="switchTab('acumulado', event)">Acumulado</button>
+  <div class="panel" id="fallback">
+    <h2>Não foi possível carregar do GitHub</h2>
+    <p id="fbMsg" class="note"></p>
+    <p>Selecione manualmente os 4 arquivos (Base Lançamento Contábil, Base Real x Orçado, Parametro Austeridade e VGV Austeridade):</p>
+    <input type="file" id="fbFiles" multiple accept=".xlsx,.xlsm">
   </div>
 
-  <div class="section-gap"></div>
+  <div id="dashboard">
+    <div class="panel"><div class="filters">
+      <label>Mês de referência</label><select id="fMes"></select>
+      <label>Regional</label><select id="fReg"></select>
+      <span class="note" style="margin:0">Sensia CP + Sensia RP consideradas juntas (SENSIA).</span>
+    </div></div>
 
-  <!-- ABA FECHADO POR MÊS -->
-  <div id="tab-mes" class="tab-content active">
-    <div class="kpi-row" id="kpiRowMes">
-      <div class="kpi"><div class="label">Total Real Mês</div><div class="value" id="kpiRealMes">R$ 0</div></div>
-      <div class="kpi"><div class="label">Total Orçado Mês</div><div class="value" id="kpiOrcMes">R$ 0</div></div>
-      <div class="kpi"><div class="label">Desvio Mês</div><div class="value" id="kpiDesvMes">0%</div></div>
-      <div class="kpi"><div class="label">VGV Mês</div><div class="value" id="kpiVgvMes">R$ 0</div></div>
+    <div class="tabs-nav">
+      <button class="tab-btn active" data-tab="p-mes">Fechado no mês</button>
+      <button class="tab-btn" data-tab="p-acum">Acumulado</button>
+      <button class="tab-btn" data-tab="p-lc">Lançamentos contábeis</button>
     </div>
-    <div class="panel">
-      <h2>Visão Mensal por Pacote, Subpacote e Regional</h2>
-      <div class="filters">
-        <select id="filterMes">
-          <option value="1">Janeiro</option>
-          <option value="2">Fevereiro</option>
-          <option value="3">Março</option>
-          <option value="4">Abril</option>
-          <option value="5">Maio</option>
-          <option value="6">Junho</option>
-          <option value="7">Julho</option>
-          <option value="8" selected>Agosto</option>
-          <option value="9">Setembro</option>
-          <option value="10">Outubro</option>
-          <option value="11">Novembro</option>
-          <option value="12">Dezembro</option>
-        </select>
-        <select id="filterRegionalMes"><option value="">Todas as regionais</option></select>
-        <input type="text" id="filterPacoteMes" placeholder="🔍 Filtrar pacote...">
-      </div>
-      <div class="table-scroll">
-        <table id="tableMes">
-          <thead><tr>
-            <th class="left">Regional</th>
-            <th class="left">Pacote</th>
-            <th class="left">Subpacote</th>
-            <th>Real</th>
-            <th>Orçado</th>
-            <th>VGV Mês</th>
-          </tr></thead>
-          <tbody id="tbodyMes"></tbody>
-        </table>
+    <div id="p-mes" class="tab-content active"></div>
+    <div id="p-acum" class="tab-content"></div>
+    <div id="p-lc" class="tab-content">
+      <div class="panel">
+        <h2>Lançamentos contábeis</h2>
+        <div class="filters" style="margin-bottom:14px">
+          <select id="lcMode"><option value="mes">Mês selecionado</option><option value="acum">Acumulado</option></select>
+          <select id="lcPac"></select>
+          <input type="text" id="lcQ" placeholder="🔍 Buscar centro de custo, conta, fornecedor, descrição...">
+        </div>
+        <div class="table-scroll"><table>
+          <thead><tr><th class="left">Data</th><th class="left">Regional</th><th class="left">Centro de custo</th><th class="left">Pacote</th><th class="left">Subpacote</th><th class="left">Conta</th><th class="left">Fornecedor</th><th class="left">Doc.</th><th class="left">Descrição</th><th>Valor</th></tr></thead>
+          <tbody id="lcBody"></tbody>
+        </table></div>
+        <div class="foot"><span id="lcInfo"></span><span><button class="btn" id="lcPrev">‹ Anterior</button> <button class="btn" id="lcNext">Próxima ›</button></span></div>
       </div>
     </div>
   </div>
-
-  <!-- ABA ACUMULADO -->
-  <div id="tab-acumulado" class="tab-content">
-    <div class="kpi-row" id="kpiRowAcum">
-      <div class="kpi"><div class="label">Total Real Acumulado</div><div class="value" id="kpiRealAcum">R$ 0</div></div>
-      <div class="kpi"><div class="label">Total Orçado Acumulado</div><div class="value" id="kpiOrcAcum">R$ 0</div></div>
-      <div class="kpi"><div class="label">Desvio Acumulado</div><div class="value" id="kpiDesvAcum">0%</div></div>
-      <div class="kpi"><div class="label">VGV Acumulado</div><div class="value" id="kpiVgvAcum">R$ 0</div></div>
-    </div>
-    <div class="panel">
-      <h2>Visão Acumulada por Pacote, Subpacote e Regional</h2>
-      <div class="filters">
-        <select id="filterRegionalAcum"><option value="">Todas as regionais</option></select>
-        <input type="text" id="filterPacoteAcum" placeholder="🔍 Filtrar pacote...">
-      </div>
-      <div class="table-scroll">
-        <table id="tableAcum">
-          <thead><tr>
-            <th class="left">Regional</th>
-            <th class="left">Pacote</th>
-            <th class="left">Subpacote</th>
-            <th>Real Acumulado</th>
-            <th>Orçado Acumulado</th>
-            <th>VGV Acumulado</th>
-          </tr></thead>
-          <tbody id="tbodyAcum"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
 </div>
 
 <script>
-const GITHUB_USER = "SPIPerformance";
-const GITHUB_REPO = "reavaliacaospi";
-const GITHUB_BRANCH = "main";
+/* ===== Configuração do GitHub (ajuste usuário/repositório/nomes dos arquivos) ===== */
+const GH={user:"SPIPerformance",repo:"austeridade",branch:"main"};
+const FILES={ro:"Base_Real_x_Orcado.xlsx",lc:"Base_Lancamento_Contabil.xlsx",par:"Parametro_Austeridade.xlsx",vgv:"VGV_Austeridade.xlsx"};
+const url=f=>`https://raw.githubusercontent.com/${GH.user}/${GH.repo}/${GH.branch}/${encodeURIComponent(f)}?t=${Date.now()}`;
 
-const URL_REALORC = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/Base%20Real%20x%20Or%C3%A7ado%20-%20Desdobrado%20em%20Centro%20de%20Custo%20e%20Conta%20Cont%C3%A1bil.xlsx`;
-const URL_PARAM = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/Parametro%20Austeridade.xlsx`;
-const URL_VGV = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/VGV%20Austeridade.xlsx`;
+const MESES=['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+const COMIS='COMISSÕES E PREMIAÇÕES (CONTRATADA)';
+const S={ro:[],lc:[],vgv:{},gst:{},loja:{},mes:1,reg:'',exp:new Set(),page:1};
+const $=id=>document.getElementById(id);
+const up=s=>String(s==null?'':s).trim();
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmt=n=>Math.round(n).toLocaleString('pt-BR');
+const pct=(n,d=1)=>n==null||!isFinite(n)?'-':(n*100).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
+const rd=(wb,opt)=>XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],Object.assign({header:1,defval:null},opt||{}));
+const mergeSensia=r=>(r==='SENSIA CP'||r==='SENSIA RP')?'SENSIA':r;
 
-let globalDataRealOrc = [];
-let globalDataVgv = {};
-let deparaMap = {};
-
-const MONTH_VGV_COLS = {
-  1: { meta: 2, real: 3 },
-  2: { meta: 4, real: 5 },
-  3: { meta: 6, real: 7 },
-  4: { meta: 8, real: 9 },
-  5: { meta: 10, real: 11 },
-  6: { meta: 12, real: 13 },
-  7: { meta: 14, real: 15 },
-  8: { meta: 16, real: 17 },
-  9: { meta: 18, real: 19 },
-  10: { meta: 20, real: 21 },
-  11: { meta: 22, real: 23 },
-  12: { meta: 24, real: 25 },
-};
-
-function switchTab(tabName, evt) {
-  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-  document.getElementById('tab-' + tabName).classList.add('active');
-  if(evt) evt.currentTarget.classList.add('active');
+/* ===== Leitura das bases ===== */
+function parseParam(wb){
+  const rows=rd(wb),h0=(rows[0]||[]).map(up),h1=(rows[1]||[]).map(up);
+  const cG=h0.indexOf('GST')>=0?h0.indexOf('GST'):27,cR=h0.indexOf('regional')>=0?h0.indexOf('regional'):26;
+  const cC=h1.indexOf('NOME CC')>=0?h1.indexOf('NOME CC'):14,cL=h1.indexOf('NOME LOJA')>=0?h1.indexOf('NOME LOJA'):15;
+  S.gst={};S.loja={};
+  rows.forEach((r,i)=>{if(!r)return;
+    if(i>=1&&r[cG]&&r[cR])S.gst[up(r[cG])]=mergeSensia(up(r[cR]));
+    if(i>=2&&r[cC]&&r[cL])S.loja[up(r[cC])]=up(r[cL]);});
+}
+function parseVGV(wb){
+  const rows=rd(wb),mc={};
+  (rows[0]||[]).forEach((v,i)=>{const k=MESES.indexOf(up(v).toUpperCase());if(k>=0)mc[k+1]=i;});
+  const out={};
+  for(let i=2;i<rows.length&&i<40;i++){const r=rows[i]||[],n=up(r[1]);
+    if(!/^(SP INT|SENSIA|\(Tudo\))/.test(n)||out[n])continue;
+    const o={m:{},r:{}};
+    for(const m in mc){o.m[m]=Number(r[mc[m]])||0;o.r[m]=Number(r[mc[m]+1])||0;}
+    out[n]=o;}
+  S.vgv=out;
+}
+function parseBase(wb,isLC){
+  const rows=rd(wb),hi=rows.findIndex(r=>r&&r.includes('Gestão'));
+  if(hi<0)throw new Error('Cabeçalho "Gestão" não encontrado na base.');
+  const H=rows[hi].map(up),c=n=>H.indexOf(n);
+  const cr=H.findIndex(h=>/^Real\s*\d+/.test(h)),co=H.findIndex(h=>/^Or[çc]\s*\d+/.test(h));
+  const out=[];
+  for(let i=hi+1;i<rows.length;i++){
+    const x=rows[i];if(!x)continue;
+    const m=Number(x[c('Mês')]),g=up(x[c('Gestão')]);
+    if(!g||!(m>=1&&m<=12))continue;           // descarta linhas de total/filtros do export
+    const pac=up(x[c('Pacote')]),cc=up(x[c('Centro de custo')]);
+    const o={mes:m,ges:g,reg:S.gst[g]||'(Sem regional)',pac,sub:up(x[c('Subpacote')]),cc,conta:up(x[c('Conta')]),cod:up(x[c('Cod. conta')]),
+      real:Number(x[cr])||0,com:pac.toUpperCase()===COMIS};
+    if(isLC){let d=up(x[c('Data Lanç')]);d=/^\d{8}$/.test(d)?d.slice(6)+'/'+d.slice(4,6)+'/'+d.slice(0,4):d;
+      o.data=d;o.forn=up(x[c('Fornecedor')]);o.doc=up(x[c('Num Doc Referência')]);o.desc=up(x[c('Informação TXTPAT')]);
+      o.txt=[cc,o.conta,o.forn,o.desc,o.doc,o.sub].join(' ').toLowerCase();}
+    else{o.orc=Number(x[co])||0;o.loja=pac==='PLANTÕES E LOJAS'?(S.loja[cc.toUpperCase()]||cc):'';}
+    out.push(o);}
+  return out;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('filterMes').addEventListener('change', renderTables);
-  document.getElementById('filterRegionalMes').addEventListener('change', renderTables);
-  document.getElementById('filterPacoteMes').addEventListener('input', renderTables);
-  document.getElementById('filterRegionalAcum').addEventListener('change', renderTables);
-  document.getElementById('filterPacoteAcum').addEventListener('input', renderTables);
+/* ===== Carga ===== */
+async function load(){
+  try{
+    const res=await Promise.all(Object.values(FILES).map(f=>fetch(url(f))));
+    res.forEach((r,i)=>{if(!r.ok)throw new Error(`Erro ao baixar ${Object.values(FILES)[i]} (${r.status})`);});
+    const b=await Promise.all(res.map(r=>r.arrayBuffer()));
+    ingest({ro:b[0],lc:b[1],par:b[2],vgv:b[3]});
+  }catch(e){console.error(e);$('tbMeta').textContent='Falha ao conectar ao GitHub';$('fbMsg').textContent=String(e.message||e);$('fallback').classList.add('visible');}
+}
+function ingest(b){
+  const R=(buf,opt)=>XLSX.read(buf,Object.assign({type:'array'},opt||{}));
+  parseParam(R(b.par,{sheetRows:600}));
+  parseVGV(R(b.vgv));
+  S.ro=parseBase(R(b.ro),false);
+  S.lc=parseBase(R(b.lc),true);
+  const ms=[...new Set(S.ro.filter(r=>r.real).map(r=>r.mes))];
+  S.mes=ms.length?Math.max(...ms):1;
+  $('fMes').innerHTML=MESES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');$('fMes').value=S.mes;
+  const regs=[...new Set(S.ro.map(r=>r.reg))].sort();
+  $('fReg').innerHTML='<option value="">(Tudo)</option>'+regs.map(r=>`<option>${esc(r)}</option>`).join('');
+  $('lcPac').innerHTML='<option value="">Todos os pacotes</option>'+[...new Set(S.lc.map(r=>r.pac))].sort().map(p=>`<option>${esc(p)}</option>`).join('');
+  $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
+  $('fallback').classList.remove('visible');$('dashboard').classList.add('visible');
+  renderAll();
+}
 
-  loadAllData();
+/* ===== Cálculo: VGV e razões ===== */
+function vgvFor(reg,mode){
+  const V=S.vgv,ms=mode==='mes'?[S.mes]:Array.from({length:S.mes},(_,i)=>i+1);
+  let names;
+  if(!reg){names=Object.keys(V).filter(n=>n!=='(Tudo)');if(V.SENSIA)names=names.filter(n=>n!=='SENSIA CP'&&n!=='SENSIA RP');}
+  else if(reg==='SENSIA'&&!V.SENSIA)names=['SENSIA CP','SENSIA RP'].filter(n=>V[n]);
+  else names=V[reg]?[reg]:[];
+  if(!names.length)return null;                         // ex.: DIRETORIA SPI não tem VGV
+  let M=0,R=0;names.forEach(n=>ms.forEach(m=>{M+=V[n].m[m]||0;R+=V[n].r[m]||0;}));
+  return{M,R};
+}
+/* ORÇ.%VGV = (Meta - Meta Comissões)/VGV Meta + Meta Comissões/VGV Real ; REAL.%VGV = Real/VGV Real
+   (equivale às fórmulas PROCX: comissões contratadas usam VGV Real nas duas pontas) */
+function ratios(n,v){
+  if(!v)return[null,null];
+  const a=n.meta-n.com,b=n.com;
+  const o=((a&&!v.M)||(b&&!v.R))?null:(a?a/v.M:0)+(b?b/v.R:0);
+  return[o,v.R?n.real/v.R:null];
+}
+const farol=d=>{if(d==null)return'-';const x=Math.round(d*1e4)/1e4;return`<span class="fd ${x>=0.01?'f-r':x>0?'f-y':'f-g'}"></span>`;};
+function sum(rows,k){const n={k:k||'',meta:0,real:0,com:0,rows};rows.forEach(r=>{n.meta+=r.orc;n.real+=r.real;if(r.com)n.com+=r.orc;});return n;}
+function build(rows,fn){
+  const g=new Map();
+  rows.forEach(r=>{const k=fn(r);if(!g.has(k))g.set(k,{k,meta:0,real:0,com:0,rows:[]});const n=g.get(k);n.meta+=r.orc;n.real+=r.real;if(r.com)n.com+=r.orc;n.rows.push(r);});
+  return[...g.values()].filter(n=>Math.round(n.meta)||Math.round(n.real)).sort((a,b)=>String(a.k).localeCompare(String(b.k),'pt-BR'));
+}
+
+/* ===== Tabelas em árvore ===== */
+function table(rows,keys,vOf,totV,tid){
+  let h='<div class="table-scroll"><table><thead><tr><th class="left">Rótulos de Linha</th><th>Meta</th><th>Real</th><th>Desvio</th><th>Desvio %</th><th>ORÇ. % VGV</th><th>REAL. % VGV</th><th>Δ p.p.</th><th>Farol</th></tr></thead><tbody>';
+  const line=(n,lvl,id,v,kids,cls)=>{
+    const[o,r]=ratios(n,v),d=n.real-n.meta,dd=(o!=null&&r!=null)?r-o:null;
+    return`<tr class="l${lvl}${kids?' tg':''}${cls||''}"${kids?` data-id="${esc(id)}"`:''}><td class="left" style="padding-left:${12+lvl*20}px">${kids?`<span class="tt">${S.exp.has(id)?'−':'+'}</span>`:''}${esc(n.k)}</td><td>${fmt(n.meta)}</td><td>${fmt(n.real)}</td><td class="${d>0?'neg':'pos'}">${fmt(d)}</td><td>${n.meta?pct(d/n.meta):'-'}</td><td>${pct(o,2)}</td><td>${pct(r,2)}</td><td>${dd==null?'-':(dd*100).toFixed(2).replace('.',',')}</td><td>${farol(dd)}</td></tr>`;};
+  const walk=(rs,lvl,pid,v)=>{for(const n of build(rs,keys[lvl])){
+    const id=pid+'|'+n.k,kids=lvl<keys.length-1,vv=lvl===0?vOf(n):v;
+    h+=line(n,lvl,id,vv,kids);
+    if(kids&&S.exp.has(id))walk(n.rows,lvl+1,id,vv);}};
+  walk(rows,0,tid,null);
+  h+=line(sum(rows,'Total Geral'),0,'',totV,false,' tot');
+  return h+'</tbody></table></div>';
+}
+const pacKeys=[r=>r.pac,r=>r.sub,r=>r.pac==='PLANTÕES E LOJAS'?(r.loja||'(sem loja)'):(r.cod+' · '+r.conta)];
+const regKeys=[r=>r.reg,r=>r.pac,r=>r.sub];
+
+function renderPeriod(mode){
+  const all=S.ro.filter(r=>mode==='mes'?r.mes===S.mes:r.mes<=S.mes);
+  const sel=S.reg?all.filter(r=>r.reg===S.reg):all;
+  const v=vgvFor(S.reg,mode),tot=sum(sel),[o,r]=ratios(tot,v),d=tot.real-tot.meta;
+  const per=mode==='mes'?`MÊS DE ${MESES[S.mes-1]}`:`ACUMULADO (JANEIRO A ${MESES[S.mes-1]})`;
+  const kp=(l,x,c)=>`<div class="kpi"><div class="label">${l}</div><div class="value"${c||''}>${x}</div></div>`;
+  $('p-'+mode).innerHTML=
+   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2))}${kp('VGV Real','R$ '+(v?fmt(v.R):'-'))}</div>
+    <div class="panel"><h2>Despesas por pacote — ${per}${S.reg?' · '+esc(S.reg):''}</h2>${table(sel,pacKeys,()=>v,v,mode+'P')}
+      <div class="note">Desvio = Real − Meta (positivo = acima da meta). Farol: Δ p.p. (REAL% − ORÇ.% do VGV) ≥ 1 p.p. vermelho · &gt; 0 amarelo · ≤ 0 verde. Comissões contratadas usam o VGV Real nas duas pontas.</div></div>
+    <div class="panel"><h2>Despesas por regional — ${per}</h2>${table(all,regKeys,n=>vgvFor(n.k,mode),vgvFor('',mode),mode+'R')}</div>`;
+}
+
+/* ===== Lançamentos ===== */
+function renderLC(){
+  const mode=$('lcMode').value,pac=$('lcPac').value,q=$('lcQ').value.toLowerCase().trim();
+  const f=S.lc.filter(r=>(mode==='mes'?r.mes===S.mes:r.mes<=S.mes)&&(!S.reg||r.reg===S.reg)&&(!pac||r.pac===pac)&&(!q||r.txt.includes(q)));
+  const tot=f.reduce((a,r)=>a+r.real,0),ps=50,max=Math.max(1,Math.ceil(f.length/ps));
+  S.page=Math.min(Math.max(1,S.page),max);
+  const st=(S.page-1)*ps;
+  $('lcBody').innerHTML=f.slice(st,st+ps).map(r=>`<tr><td class="left">${esc(r.data)}</td><td class="left">${esc(r.reg)}</td><td class="left">${esc(r.cc)}</td><td class="left">${esc(r.pac)}</td><td class="left">${esc(r.sub)}</td><td class="left">${esc(r.conta)}</td><td class="left">${esc(r.forn)}</td><td class="left">${esc(r.doc)}</td><td class="left" style="max-width:320px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.desc)}">${esc(r.desc)}</td><td>${fmt(r.real)}</td></tr>`).join('');
+  $('lcInfo').textContent=`${f.length.toLocaleString('pt-BR')} lançamentos · Total R$ ${fmt(tot)} · Página ${S.page}/${max}`;
+}
+function renderAll(){renderPeriod('mes');renderPeriod('acum');renderLC();}
+
+/* ===== Eventos ===== */
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn,.tab-content').forEach(e=>e.classList.remove('active'));
+    b.classList.add('active');$(b.dataset.tab).classList.add('active');}));
+  $('fMes').addEventListener('change',e=>{S.mes=+e.target.value;S.page=1;
+    $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;renderAll();});
+  $('fReg').addEventListener('change',e=>{S.reg=e.target.value;S.page=1;renderAll();});
+  ['lcMode','lcPac'].forEach(i=>$(i).addEventListener('change',()=>{S.page=1;renderLC();}));
+  $('lcQ').addEventListener('input',()=>{S.page=1;renderLC();});
+  $('lcPrev').addEventListener('click',()=>{S.page--;renderLC();});
+  $('lcNext').addEventListener('click',()=>{S.page++;renderLC();});
+  document.addEventListener('click',e=>{const tr=e.target.closest('tr.tg');if(!tr)return;
+    const id=tr.dataset.id;S.exp.has(id)?S.exp.delete(id):S.exp.add(id);renderPeriod('mes');renderPeriod('acum');});
+  $('fbFiles').addEventListener('change',async e=>{
+    const b={};
+    for(const f of e.target.files){const n=f.name.toLowerCase(),buf=await f.arrayBuffer();
+      if(/lan[cç]/.test(n))b.lc=buf;else if(/param/.test(n))b.par=buf;else if(/vgv/.test(n))b.vgv=buf;else if(/or[cç]ado|real/.test(n))b.ro=buf;}
+    if(!(b.ro&&b.lc&&b.par&&b.vgv)){$('fbMsg').textContent='Faltam arquivos: selecione os 4 de uma vez.';return;}
+    try{ingest(b);}catch(err){$('fbMsg').textContent=String(err.message||err);}
+  });
+  load();
 });
-
-async function loadAllData() {
-  const tbMeta = document.getElementById('tbMeta');
-  try {
-    const [resRealOrc, resParam, resVgv] = await Promise.all([
-      fetch(URL_REALORC),
-      fetch(URL_PARAM),
-      fetch(URL_VGV)
-    ]);
-
-    if(!resRealOrc.ok) throw new Error(`Erro Real x Orçado (${resRealOrc.status})`);
-    if(!resParam.ok) throw new Error(`Erro Parâmetro (${resParam.status})`);
-    if(!resVgv.ok) throw new Error(`Erro VGV (${resVgv.status})`);
-
-    const [bufRealOrc, bufParam, bufVgv] = await Promise.all([
-      resRealOrc.arrayBuffer(),
-      resParam.arrayBuffer(),
-      resVgv.arrayBuffer()
-    ]);
-
-    // Parse Parametro Austeridade
-    const wbParam = XLSX.read(bufParam, {type: 'array'});
-    const wsParam = wbParam.Sheets['PARAMETRO'] || wbParam.Sheets[wbParam.SheetNames[0]];
-    const paramRows = XLSX.utils.sheet_to_json(wsParam, {header: 1});
-    deparaMap = {};
-    for(let i=1; i<paramRows.length; i++) {
-      const r = paramRows[i];
-      if(r) {
-        const gst = String(r[27] || '').trim();
-        const reg = String(r[29] || '').trim();
-        if(gst && reg && reg !== 'nan') deparaMap[gst] = reg;
-      }
-    }
-    // Adicionar mapeamento direto das colunas 32 e 33 se existirem
-    for(let i=1; i<paramRows.length; i++) {
-      const r = paramRows[i];
-      if(r && r[32] && r[33]) {
-        deparaMap[String(r[32]).trim()] = String(r[33]).trim();
-      }
-    }
-
-    // Parse VGV Austeridade
-    const wbVgv = XLSX.read(bufVgv, {type: 'array'});
-    const wsVgv = wbVgv.Sheets['VGV'] || wbVgv.Sheets[wbVgv.SheetNames[0]];
-    const vgvRows = XLSX.utils.sheet_to_json(wsVgv, {header: 1});
-    globalDataVgv = {};
-    for(let i=2; i<vgvRows.length; i++) {
-      const r = vgvRows[i];
-      if(r && r[1]) {
-        const reg = String(r[1]).trim();
-        globalDataVgv[reg] = {
-          mesReal: Number(r[29] || 0),
-          acumReal: Number(r[27] || 0),
-          mensalRealMap: {}
-        };
-        for(let m=1; m<=12; m++) {
-          const colIdx = MONTH_VGV_COLS[m]?.real;
-          if(colIdx !== undefined) {
-            globalDataVgv[reg].mensalRealMap[m] = Number(r[colIdx] || 0);
-          }
-        }
-      }
-    }
-
-    // Parse Real x Orçado
-    const wbRealOrc = XLSX.read(bufRealOrc, {type: 'array'});
-    const wsRealOrc = wbRealOrc.Sheets['Export'] || wbRealOrc.Sheets[wbRealOrc.SheetNames[0]];
-    const realOrcRows = XLSX.utils.sheet_to_json(wsRealOrc);
-
-    globalDataRealOrc = realOrcRows.map(row => {
-      const mes = Number(row['Mês'] || 8);
-      const gestao = String(row['Gestão'] || '').trim();
-      let regional = deparaMap[gestao] || 'SP INT 1';
-      // Unificar Sensias conforme instrução
-      if(regional.toUpperCase().includes('SENSIA')) {
-        regional = 'SENSIA';
-      }
-      const pacote = String(row['Pacote'] || 'OUTROS').trim();
-      const subpacote = String(row['Subpacote'] || 'OUTROS').trim();
-      const realVal = Number(row['Real 26'] || 0);
-      const orcVal = Number(row['Orç 26'] || 0);
-
-      return { mes, regional, pacote, subpacote, realVal, orcVal };
-    });
-
-    tbMeta.innerHTML = `Atualizado: <b>${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}</b>`;
-    populateRegionFilters();
-    renderTables();
-
-  } catch(err) {
-    console.error(err);
-    tbMeta.innerHTML = `<span style="color:var(--crit-fg);">Erro ao carregar dados do GitHub</span>`;
-  }
-}
-
-function populateRegionFilters() {
-  const regionSet = Array.from(new Set(globalDataRealOrc.map(d => d.regional))).sort();
-  const selMes = document.getElementById('filterRegionalMes');
-  const selAcum = document.getElementById('filterRegionalAcum');
-  
-  regionSet.forEach(reg => {
-    selMes.innerHTML += `<option value="${reg}">${reg}</option>`;
-    selAcum.innerHTML += `<option value="${reg}">${reg}</option>`;
-  });
-}
-
-function renderTables() {
-  const mesSel = Number(document.getElementById('filterMes').value);
-  const regMesSel = document.getElementById('filterRegionalMes').value;
-  const pacMesFilter = document.getElementById('filterPacoteMes').value.toLowerCase();
-
-  // Filtrar Mês atual (ou meses até o selecionado para o acumulado)
-  const subsetMes = globalDataRealOrc.filter(d => {
-    if(d.mes !== mesSel) return false;
-    if(regMesSel && d.regional !== regMesSel) return false;
-    if(pacMesFilter && !d.pacote.toLowerCase().includes(pacMesFilter)) return false;
-    return true;
-  });
-
-  let groupMes = {};
-  subsetMes.forEach(d => {
-    const key = `${d.regional}|${d.pacote}|${d.subpacote}`;
-    if(!groupMes[key]) groupMes[key] = { regional: d.regional, pacote: d.pacote, subpacote: d.subpacote, real: 0, orc: 0 };
-    groupMes[key].real += d.realVal;
-    groupMes[key].orc += d.orcVal;
-  });
-
-  let tbodyMes = document.getElementById('tbodyMes');
-  tbodyMes.innerHTML = '';
-  let totRealMes = 0, totOrcMes = 0, totVgvMes = 0;
-
-  Object.values(groupMes).forEach(item => {
-    totRealMes += item.real;
-    totOrcMes += item.orc;
-    const vgvItem = globalDataVgv[item.regional]?.mensalRealMap?.[mesSel] || globalDataVgv[item.regional]?.mesReal || 0;
-    totVgvMes += vgvItem;
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="left">${item.regional}</td>
-      <td class="left">${item.pacote}</td>
-      <td class="left">${item.subpacote}</td>
-      <td>R$ ${item.real.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-      <td>R$ ${item.orc.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-      <td>R$ ${vgvItem.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-    `;
-    tbodyMes.appendChild(tr);
-  });
-
-  document.getElementById('kpiRealMes').textContent = `R$ ${totRealMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-  document.getElementById('kpiOrcMes').textContent = `R$ ${totOrcMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-  document.getElementById('kpiDesvMes').textContent = totOrcMes ? (((totRealMes - totOrcMes)/totOrcMes)*100).toFixed(2) + '%' : '0%';
-  document.getElementById('kpiVgvMes').textContent = `R$ ${totVgvMes.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-
-  // Acumulado (meses <= mesSel)
-  const regAcumSel = document.getElementById('filterRegionalAcum').value;
-  const pacAcumFilter = document.getElementById('filterPacoteAcum').value.toLowerCase();
-
-  const subsetAcum = globalDataRealOrc.filter(d => {
-    if(d.mes > mesSel) return false;
-    if(regAcumSel && d.regional !== regAcumSel) return false;
-    if(pacAcumFilter && !d.pacote.toLowerCase().includes(pacAcumFilter)) return false;
-    return true;
-  });
-
-  let groupAcum = {};
-  subsetAcum.forEach(d => {
-    const key = `${d.regional}|${d.pacote}|${d.subpacote}`;
-    if(!groupAcum[key]) groupAcum[key] = { regional: d.regional, pacote: d.pacote, subpacote: d.subpacote, real: 0, orc: 0 };
-    groupAcum[key].real += d.realVal;
-    groupAcum[key].orc += d.orcVal;
-  });
-
-  let tbodyAcum = document.getElementById('tbodyAcum');
-  tbodyAcum.innerHTML = '';
-  let totRealAcum = 0, totOrcAcum = 0, totVgvAcum = 0;
-
-  Object.values(groupAcum).forEach(item => {
-    totRealAcum += item.real;
-    totOrcAcum += item.orc;
-    const vgvItemAcum = globalDataVgv[item.regional]?.acumReal || 0;
-    totVgvAcum += vgvItemAcum;
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td class="left">${item.regional}</td>
-      <td class="left">${item.pacote}</td>
-      <td class="left">${item.subpacote}</td>
-      <td>R$ ${item.real.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-      <td>R$ ${item.orc.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-      <td>R$ ${vgvItemAcum.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
-    `;
-    tbodyAcum.appendChild(tr);
-  });
-
-  document.getElementById('kpiRealAcum').textContent = `R$ ${totRealAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-  document.getElementById('kpiOrcAcum').textContent = `R$ ${totOrcAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-  document.getElementById('kpiDesvAcum').textContent = totOrcAcum ? (((totRealAcum - totOrcAcum)/totOrcAcum)*100).toFixed(2) + '%' : '0%';
-  document.getElementById('kpiVgvAcum').textContent = `R$ ${totVgvAcum.toLocaleString('pt-BR', {maximumFractionDigits:0})}`;
-}
 </script>
 </body>
 </html>
