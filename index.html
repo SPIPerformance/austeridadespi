@@ -58,9 +58,9 @@ tr.tot{background:#E6EFEA;font-weight:700}
   </div>
 
   <div class="panel" id="fallback">
-    <h2>Não foi possível carregar do GitHub</h2>
+    <h2>Carregar Arquivos Localmente</h2>
     <p id="fbMsg" class="note"></p>
-    <p>Selecione manualmente os arquivos de base (Real x Orçado e Parâmetros):</p>
+    <p>Selecione o arquivo consolidado (.xlsx) ou os 3 arquivos individuais (Base Real x Orçado, Parâmetro Austeridade e VGV Austeridade):</p>
     <input type="file" id="fbFiles" multiple accept=".xlsx,.xlsm">
   </div>
 
@@ -85,7 +85,7 @@ tr.tot{background:#E6EFEA;font-weight:700}
 <script>
 /* ===== Configuração do GitHub ===== */
 const GH={user:"SPIPerformance",repo:"austeridadespi",branch:"main"};
-const FILES={ro:"Base Real x Orçado - Desdobrado em Centro de Custo e Conta Contábil.xlsx",par:"Parametro Austeridade.xlsx"};
+const FILES={ro:"Base Real x Orçado - Desdobrado em Centro de Custo e Conta Contábil.xlsx",par:"Parametro Austeridade.xlsx",vgv:"VGV Austeridade.xlsx"};
 const url=f=>`https://raw.githubusercontent.com/${GH.user}/${GH.repo}/${GH.branch}/${encodeURIComponent(f)}?t=${Date.now()}`;
 
 const MESES=['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
@@ -96,223 +96,402 @@ const up=s=>String(s==null?'':s).trim();
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const fmt=n=>Math.round(n).toLocaleString('pt-BR');
 const pct=(n,d=1)=>n==null||!isFinite(n)?'-':(n*100).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
-const rd=(wb,opt)=>XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],Object.assign({header:1,defval:null},opt||{}));
 const mergeSensia=r=>(r==='SENSIA CP'||r==='SENSIA RP')?'SENSIA':r;
 
-/* ===== Tabela VGV Incorporada Direta no Código ===== */
-function parseVGVDirect(){
-  // Dados VGV Meta (m) e VGV Real (r) por regional e por mês
-  return {
-    "SP INT": {
-      m: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0},
-      r: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0}
-    },
-    "SENSIA CP": {
-      m: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0},
-      r: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0}
-    },
-    "SENSIA RP": {
-      m: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0},
-      r: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0}
+function getSheet(wb, namePattern) {
+  const name = wb.SheetNames.find(n => namePattern.test(n)) || wb.SheetNames[0];
+  return wb.Sheets[name];
+}
+
+/* ===== Leitura e Fórmulas da Aba VGV ===== */
+function parseVGV(wb){
+  const sheet = getSheet(wb, /vgv/i);
+  const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+  
+  const mc = {};
+  for(let r = 0; r < Math.min(rows.length, 6); r++){
+    const row = rows[r] || [];
+    row.forEach((v, cIdx) => {
+      if(!v) return;
+      const str = up(v).toUpperCase();
+      MESES.forEach((mName, mIdx) => {
+        if(str.includes(mName) && !mc[mIdx + 1]) {
+          mc[mIdx + 1] = cIdx;
+        }
+      });
+    });
+  }
+
+  const rawOut = {};
+  for(let i = 0; i < rows.length; i++){
+    const r = rows[i] || [];
+    let name = '';
+    for(let c = 0; c < 3; c++){
+      const val = up(r[c]);
+      if(/^(SP INT|SENSIA CP|SENSIA RP|SENSIA|\(Tudo\)|TOTAL GERAL)/i.test(val)){
+        name = val.toUpperCase();
+        break;
+      }
     }
-  };
+    if(!name) continue;
+
+    if(name.includes('SP INT')) name = 'SP INT';
+    else if(name.includes('SENSIA CP')) name = 'SENSIA CP';
+    else if(name.includes('SENSIA RP')) name = 'SENSIA RP';
+    else if(name.includes('SENSIA') && !name.includes('CP') && !name.includes('RP')) name = 'SENSIA';
+    else if(name.includes('TUDO') || name.includes('TOTAL')) name = '(Tudo)';
+
+    if(rawOut[name]) continue;
+
+    const o = { m: {}, r: {} };
+    for(const m in mc){
+      const cIdx = mc[m];
+      o.m[m] = Number(r[cIdx]) || 0;
+      o.r[m] = Number(r[cIdx + 1]) || 0;
+    }
+    rawOut[name] = o;
+  }
+
+  // FÓRMULAS EMBARCADAS: Cálculo automático da Marca SENSIA (SENSIA CP + SENSIA RP)
+  if (!rawOut['SENSIA']) {
+    rawOut['SENSIA'] = { m: {}, r: {} };
+  }
+  if (rawOut['SENSIA CP'] || rawOut['SENSIA RP']) {
+    const cp = rawOut['SENSIA CP'] || { m: {}, r: {} };
+    const rp = rawOut['SENSIA RP'] || { m: {}, r: {} };
+    for (let m = 1; m <= 12; m++) {
+      rawOut['SENSIA'].m[m] = (cp.m[m] || 0) + (rp.m[m] || 0);
+      rawOut['SENSIA'].r[m] = (cp.r[m] || 0) + (rp.r[m] || 0);
+    }
+  }
+
+  // FÓRMULAS EMBARCADAS: Cálculo do Total Geral (Tudo) = SP INT + SENSIA
+  if (!rawOut['(Tudo)']) {
+    rawOut['(Tudo)'] = { m: {}, r: {} };
+  }
+  const sp = rawOut['SP INT'] || { m: {}, r: {} };
+  const sen = rawOut['SENSIA'] || { m: {}, r: {} };
+  for (let m = 1; m <= 12; m++) {
+    if (!rawOut['(Tudo)'].m[m]) rawOut['(Tudo)'].m[m] = (sp.m[m] || 0) + (sen.m[m] || 0);
+    if (!rawOut['(Tudo)'].r[m]) rawOut['(Tudo)'].r[m] = (sp.r[m] || 0) + (sen.r[m] || 0);
+  }
+
+  S.vgv = rawOut;
 }
 
 function parseParam(wb){
-  const rows=rd(wb),h0=(rows[0]||[]).map(up),h1=(rows[1]||[]).map(up);
-  const cG=h0.indexOf('GST')>=0?h0.indexOf('GST'):27,cR=h0.indexOf('regional')>=0?h0.indexOf('regional'):26;
-  const cC=h1.indexOf('NOME CC')>=0?h1.indexOf('NOME CC'):14,cL=h1.indexOf('NOME LOJA')>=0?h1.indexOf('NOME LOJA'):15;
-  S.gst={};S.loja={};
-  rows.forEach((r,i)=>{if(!r)return;
-    if(i>=1&&r[cG]&&r[cR])S.gst[up(r[cG])]=up(r[cR]);
-    if(i>=2&&r[cC]&&r[cL])S.loja[up(r[cC])]=up(r[cL]);});
+  const sheet = getSheet(wb, /param/i);
+  const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+  const h0 = (rows[0] || []).map(up), h1 = (rows[1] || []).map(up);
+  const cG = h0.indexOf('GST') >= 0 ? h0.indexOf('GST') : 27;
+  const cR = h0.indexOf('regional') >= 0 ? h0.indexOf('regional') : 26;
+  const cC = h1.indexOf('NOME CC') >= 0 ? h1.indexOf('NOME CC') : 14;
+  const cL = h1.indexOf('NOME LOJA') >= 0 ? h1.indexOf('NOME LOJA') : 15;
+  S.gst = {}; S.loja = {};
+  rows.forEach((r, i) => {
+    if(!r) return;
+    if(i >= 1 && r[cG] && r[cR]) S.gst[up(r[cG])] = up(r[cR]);
+    if(i >= 2 && r[cC] && r[cL]) S.loja[up(r[cC])] = up(r[cL]);
+  });
 }
 
 function parseBase(wb){
-  const rows=rd(wb),hi=rows.findIndex(r=>r&&r.includes('Gestão'));
-  if(hi<0)throw new Error('Cabeçalho "Gestão" não encontrado na base.');
-  const H=rows[hi].map(up),c=n=>H.indexOf(n);
-  const cr=H.findIndex(h=>/^Real\s*\d+/.test(h)),co=H.findIndex(h=>/^Or[çc]\s*\d+/.test(h));
-  const out=[];
-  for(let i=hi+1;i<rows.length;i++){
-    const x=rows[i];if(!x)continue;
-    const m=Number(x[c('Mês')]),g=up(x[c('Gestão')]);
-    if(!g||!(m>=1&&m<=12))continue;
-    const pac=up(x[c('Pacote')]),cc=up(x[c('Centro de custo')]);
-    const o={mes:m,ges:g,raw:S.gst[g]||'(Sem regional)',reg:mergeSensia(S.gst[g]||'(Sem regional)'),pac,sub:up(x[c('Subpacote')]),cc,conta:up(x[c('Conta')]),cod:up(x[c('Cod. conta')]),
-      real:Number(x[cr])||0,com:pac.toUpperCase()===COMIS};
-    {o.orc=Number(x[co])||0;o.loja=pac==='PLANTÕES E LOJAS'?(S.loja[cc.toUpperCase()]||cc):'';}
-    out.push(o);}
+  const sheet = getSheet(wb, /real|or[çc]ado|base/i);
+  const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+  const hi = rows.findIndex(r => r && r.includes && r.includes('Gestão'));
+  if(hi < 0) throw new Error('Cabeçalho "Gestão" não encontrado na base.');
+  const H = rows[hi].map(up);
+  const c = n => H.indexOf(n);
+  const cr = H.findIndex(h => /^Real\s*\d+/.test(h) || h === 'Real');
+  const co = H.findIndex(h => /^Or[çc]\s*\d+/.test(h) || /^Or[çc]ado/i.test(h));
+  const out = [];
+  for(let i = hi + 1; i < rows.length; i++){
+    const x = rows[i]; if(!x) continue;
+    const m = Number(x[c('Mês')]), g = up(x[c('Gestão')]);
+    if(!g || !(m >= 1 && m <= 12)) continue;
+    const pac = up(x[c('Pacote')]), cc = up(x[c('Centro de custo')]);
+    const o = {
+      mes: m,
+      ges: g,
+      raw: S.gst[g] || '(Sem regional)',
+      reg: mergeSensia(S.gst[g] || '(Sem regional)'),
+      pac,
+      sub: up(x[c('Subpacote')]),
+      cc,
+      conta: up(x[c('Conta')]),
+      cod: up(x[c('Cod. conta')]),
+      real: Number(x[cr]) || 0,
+      com: pac.toUpperCase() === COMIS
+    };
+    o.orc = Number(x[co]) || 0;
+    o.loja = pac === 'PLANTÕES E LOJAS' ? (S.loja[cc.toUpperCase()] || cc) : '';
+    out.push(o);
+  }
   return out;
 }
 
-/* ===== Carga ===== */
-async function load(){
-  try{
-    const keys=Object.keys(FILES);
-    let res=await Promise.all(keys.map(k=>fetch(url(FILES[k])).catch(()=>({ok:false,status:'rede'}))));
-    if(res.some(r=>!r.ok)){
-      const PAT={ro:/or[çc]ado/i,par:/param/i};
-      let list=null;
-      try{const a=await fetch(`https://api.github.com/repos/${GH.user}/${GH.repo}/contents/?ref=${GH.branch}`);
-        if(a.ok)list=(await a.json()).filter(f=>f.type==='file');}catch(_){}
-      if(!list)throw new Error(`Não foi possível ler o repositório ${GH.user}/${GH.repo}`);
-      list=list.filter(f=>/\.xls[xm]$/i.test(f.name));
-      const found={ro:list.find(f=>PAT.ro.test(f.name)),par:list.find(f=>PAT.par.test(f.name))};
-      res=await Promise.all(keys.map(k=>fetch(found[k].download_url+'?t='+Date.now())));
-    }
-    const b=await Promise.all(res.map(r=>r.arrayBuffer()));
-    ingest({ro:b[0],par:b[1]});
-  }catch(e){console.error(e);$('tbMeta').textContent='Falha ao conectar ao GitHub';$('fbMsg').textContent=String(e.message||e);$('fallback').classList.add('visible');}
-}
-
-function populateReg(){
-  const regs=[...new Set(S.ro.flatMap(r=>[r.reg,r.raw]))].sort();
-  if(S.reg&&!regs.includes(S.reg))S.reg='';
-  $('fReg').innerHTML='<option value="">(Tudo)</option>'+regs.map(r=>`<option>${esc(r)}</option>`).join('');
-  $('fReg').value=S.reg;
-}
-const inReg=r=>!S.reg||r.reg===S.reg||r.raw===S.reg;
-
+/* ===== Processamento Unificado ===== */
 function ingest(b){
-  const R=(buf,opt)=>XLSX.read(buf,Object.assign({type:'array'},opt||{}));
-  parseParam(R(b.par,{sheetRows:600}));
-  S.vgv=parseVGVDirect();
-  S.ro=parseBase(R(b.ro));
-  const ms=[...new Set(S.ro.filter(r=>r.real).map(r=>r.mes))];
-  S.mes=ms.length?Math.max(...ms):1;
-  $('fMes').innerHTML=MESES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');$('fMes').value=S.mes;
+  const R = (buf, opt) => XLSX.read(buf, Object.assign({ type: 'array' }, opt || {}));
+  
+  let wbRO, wbPAR, wbVGV;
+  if (b.single) {
+    const wb = R(b.single);
+    wbRO = wb; wbPAR = wb; wbVGV = wb;
+  } else {
+    wbRO = R(b.ro); wbPAR = R(b.par); wbVGV = R(b.vgv);
+  }
+
+  parseParam(wbPAR);
+  parseVGV(wbVGV);
+  S.ro = parseBase(wbRO);
+
+  const ms = [...new Set(S.ro.filter(r => r.real).map(r => r.mes))];
+  S.mes = ms.length ? Math.max(...ms) : 1;
+  $('fMes').innerHTML = MESES.map((n, i) => `<option value="${i + 1}">${n}</option>`).join('');
+  $('fMes').value = S.mes;
   populateReg();
-  $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
-  $('fallback').classList.remove('visible');$('dashboard').classList.add('visible');
+  $('tbMeta').innerHTML = `Dados até <b>${MESES[S.mes - 1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
+  $('fallback').classList.remove('visible');
+  $('dashboard').classList.add('visible');
   renderAll();
 }
 
-/* ===== Fórmulas VGV e Índices ===== */
-function vgvFor(reg,mode,mm){
-  const V=S.vgv,ms=mm?[mm]:mode==='mes'?[S.mes]:Array.from({length:S.mes},(_,i)=>i+1);
+async function load(){
+  try{
+    const keys = Object.keys(FILES);
+    let res = await Promise.all(keys.map(k => fetch(url(FILES[k])).catch(() => ({ ok: false, status: 'rede' }))));
+    if(res.some(r => !r.ok)){
+      const PAT = { ro: /or[çc]ado|real|base/i, par: /param/i, vgv: /vgv/i };
+      const falhas = keys.filter((k, i) => !res[i].ok).map(k => decodeURIComponent(url(FILES[k]).split('?')[0]));
+      let list = null;
+      try{
+        const a = await fetch(`https://api.github.com/repos/${GH.user}/${GH.repo}/contents/?ref=${GH.branch}`);
+        if(a.ok) list = (await a.json()).filter(f => f.type === 'file');
+      }catch(_){}
+      if(!list){
+        try{
+          const j = await fetch(`https://data.jsdelivr.com/v1/packages/gh/${GH.user}/${GH.repo}@${GH.branch}?structure=flat`);
+          if(j.ok) list = (await j.json()).files.filter(f => f.name.split('/').length === 2).map(f => {
+            const n = f.name.slice(1);
+            return { name: n, download_url: `https://raw.githubusercontent.com/${GH.user}/${GH.repo}/${GH.branch}/${encodeURIComponent(n)}` };
+          });
+        }catch(_){}
+      }
+      if(!list) throw new Error(`Não foi possível conectar ao repositório ${GH.user}/${GH.repo}`);
+      list = list.filter(f => /\.xls[xm]$/i.test(f.name));
+      const found = { ro: list.find(f => PAT.ro.test(f.name)), par: list.find(f => PAT.par.test(f.name)), vgv: list.find(f => PAT.vgv.test(f.name)) };
+      const miss = keys.filter(k => !found[k]).map(k => FILES[k]);
+      if(miss.length) throw new Error(`Arquivos não encontrados no repositório: ${miss.join(' | ')}`);
+      res = await Promise.all(keys.map(k => fetch(found[k].download_url + '?t=' + Date.now())));
+    }
+    const b = await Promise.all(res.map(r => r.arrayBuffer()));
+    ingest({ ro: b[0], par: b[1], vgv: b[2] });
+  }catch(e){
+    console.error(e);
+    $('tbMeta').textContent = 'Falha no carregamento automático';
+    $('fbMsg').textContent = String(e.message || e);
+    $('fallback').classList.add('visible');
+  }
+}
+
+function populateReg(){
+  const regs = [...new Set(S.ro.flatMap(r => [r.reg, r.raw]))].sort();
+  if(S.reg && !regs.includes(S.reg)) S.reg = '';
+  $('fReg').innerHTML = '<option value="">(Tudo)</option>' + regs.map(r => `<option>${esc(r)}</option>`).join('');
+  $('fReg').value = S.reg;
+}
+const inReg = r => !S.reg || r.reg === S.reg || r.raw === S.reg;
+
+/* ===== Cálculo de Relações e Indicadores ===== */
+function vgvFor(reg, mode, mm){
+  const V = S.vgv, ms = mm ? [mm] : mode === 'mes' ? [S.mes] : Array.from({ length: S.mes }, (_, i) => i + 1);
   let names;
-  if(!reg){names=Object.keys(V).filter(n=>n!=='(Tudo)');if(V.SENSIA)names=names.filter(n=>n!=='SENSIA CP'&&n!=='SENSIA RP');}
-  else if(reg==='SENSIA'&&!V.SENSIA)names=['SENSIA CP','SENSIA RP'].filter(n=>V[n]);
-  else names=V[reg]?[reg]:[];
-  if(!names.length)return null;
-  let M=0,R=0;names.forEach(n=>ms.forEach(m=>{M+=V[n].m[m]||0;R+=V[n].r[m]||0;}));
-  return{M,R};
+  if(!reg){
+    names = Object.keys(V).filter(n => n !== '(Tudo)');
+    if(V.SENSIA) names = names.filter(n => n !== 'SENSIA CP' && n !== 'SENSIA RP');
+  }
+  else if(reg === 'SENSIA' && !V.SENSIA) names = ['SENSIA CP', 'SENSIA RP'].filter(n => V[n]);
+  else names = V[reg] ? [reg] : [];
+  if(!names.length) return null;
+  let M = 0, R = 0;
+  names.forEach(n => ms.forEach(m => {
+    if(V[n]) { M += V[n].m[m] || 0; R += V[n].r[m] || 0; }
+  }));
+  return { M, R };
 }
 
-/* 
-   Fórmula direta de cálculo do VGV:
-   ORÇ.%VGV = (Meta Outras Despesas / VGV Meta) + (Meta Comissões Contratadas / VGV Real)
-   REAL.%VGV = Real Total / VGV Real
-*/
-function ratios(n,v){
-  if(!v)return[null,null];
-  const a=n.meta-n.com,b=n.com;
-  const o=((a&&!v.M)||(b&&!v.R))?null:(a?a/v.M:0)+(b?b/v.R:0);
-  return[o,v.R?n.real/v.R:null];
+function ratios(n, v){
+  if(!v) return [null, null];
+  const a = n.meta - n.com, b = n.com;
+  const o = ((a && !v.M) || (b && !v.R)) ? null : (a ? a / v.M : 0) + (b ? b / v.R : 0);
+  return [o, v.R ? n.real / v.R : null];
 }
 
-const farol=d=>{if(d==null)return'-';const x=Math.round(d*1e4)/1e4;return`<span class="fd ${x>=0.01?'f-r':x>0?'f-y':'f-g'}"></span>`;};
-function sum(rows,k){const n={k:k||'',meta:0,real:0,com:0,rows};rows.forEach(r=>{n.meta+=r.orc;n.real+=r.real;if(r.com)n.com+=r.orc;});return n;}
-function build(rows,fn){
-  const g=new Map();
-  rows.forEach(r=>{const k=fn(r);if(!g.has(k))g.set(k,{k,meta:0,real:0,com:0,rows:[]});const n=g.get(k);n.meta+=r.orc;n.real+=r.real;if(r.com)n.com+=r.orc;n.rows.push(r);});
-  return[...g.values()].filter(n=>Math.round(n.meta)||Math.round(n.real)).sort((a,b)=>String(a.k).localeCompare(String(b.k),'pt-BR'));
+const farol = d => {
+  if(d == null) return '-';
+  const x = Math.round(d * 1e4) / 1e4;
+  return `<span class="fd ${x >= 0.01 ? 'f-r' : x > 0 ? 'f-y' : 'f-g'}"></span>`;
+};
+
+function sum(rows, k){
+  const n = { k: k || '', meta: 0, real: 0, com: 0, rows };
+  rows.forEach(r => { n.meta += r.orc; n.real += r.real; if(r.com) n.com += r.orc; });
+  return n;
 }
 
-/* ===== Tabelas em Árvore ===== */
-function table(rows,keys,vOf,totV,tid){
-  let h='<div class="table-scroll"><table><thead><tr><th class="left">Rótulos de Linha</th><th>Meta</th><th>Real</th><th>Desvio</th><th>Desvio %</th><th>ORÇ. % VGV</th><th>REAL. % VGV</th><th>Δ p.p.</th><th>Farol</th></tr></thead><tbody>';
-  const line=(n,lvl,id,v,kids,cls)=>{
-    const[o,r]=ratios(n,v),d=n.real-n.meta,dd=(o!=null&&r!=null)?r-o:null;
-    return`<tr class="l${lvl}${kids?' tg':''}${cls||''}"${kids?` data-id="${esc(id)}"`:''}><td class="left" style="padding-left:${12+lvl*20}px">${kids?`<span class="tt">${S.exp.has(id)?'−':'+'}</span>`:''}${esc(n.k)}</td><td>${fmt(n.meta)}</td><td>${fmt(n.real)}</td><td class="${d>0?'neg':'pos'}">${fmt(d)}</td><td>${n.meta?pct(d/n.meta):'-'}</td><td>${pct(o,2)}</td><td>${pct(r,2)}</td><td>${dd==null?'-':(dd*100).toFixed(2).replace('.',',')}</td><td>${farol(dd)}</td></tr>`;};
-  const walk=(rs,lvl,pid,v)=>{for(const n of build(rs,keys[lvl])){
-    const id=pid+'|'+n.k,kids=lvl<keys.length-1,vv=lvl===0?vOf(n):v;
-    h+=line(n,lvl,id,vv,kids);
-    if(kids&&S.exp.has(id))walk(n.rows,lvl+1,id,vv);}};
-  walk(rows,0,tid,null);
-  h+=line(sum(rows,'Total Geral'),0,'',totV,false,' tot');
-  return h+'</tbody></table></div>';
+function build(rows, fn){
+  const g = new Map();
+  rows.forEach(r => {
+    const k = fn(r);
+    if(!g.has(k)) g.set(k, { k, meta: 0, real: 0, com: 0, rows: [] });
+    const n = g.get(k);
+    n.meta += r.orc; n.real += r.real; if(r.com) n.com += r.orc; n.rows.push(r);
+  });
+  return [...g.values()].filter(n => Math.round(n.meta) || Math.round(n.real)).sort((a, b) => String(a.k).localeCompare(String(b.k), 'pt-BR'));
 }
-const pacKeys=[r=>r.pac,r=>r.sub,r=>r.pac==='PLANTÕES E LOJAS'?(r.loja||'(sem loja)'):(r.cod+' · '+r.conta)];
-const regKeys=[r=>r.reg,r=>r.pac,r=>r.sub];
+
+/* ===== Renderização de Tabelas ===== */
+function table(rows, keys, vOf, totV, tid){
+  let h = '<div class="table-scroll"><table><thead><tr><th class="left">Rótulos de Linha</th><th>Meta</th><th>Real</th><th>Desvio</th><th>Desvio %</th><th>ORÇ. % VGV</th><th>REAL. % VGV</th><th>Δ p.p.</th><th>Farol</th></tr></thead><tbody>';
+  const line = (n, lvl, id, v, kids, cls) => {
+    const [o, r] = ratios(n, v), d = n.real - n.meta, dd = (o != null && r != null) ? r - o : null;
+    return `<tr class="l${lvl}${kids ? ' tg' : ''}${cls || ''}"${kids ? ` data-id="${esc(id)}"` : ''}><td class="left" style="padding-left:${12 + lvl * 20}px">${kids ? `<span class="tt">${S.exp.has(id) ? '−' : '+'}</span>` : ''}${esc(n.k)}</td><td>${fmt(n.meta)}</td><td>${fmt(n.real)}</td><td class="${d > 0 ? 'neg' : 'pos'}">${fmt(d)}</td><td>${n.meta ? pct(d / n.meta) : '-'}</td><td>${pct(o, 2)}</td><td>${pct(r, 2)}</td><td>${dd == null ? '-' : (dd * 100).toFixed(2).replace('.', ',')}</td><td>${farol(dd)}</td></tr>`;
+  };
+  const walk = (rs, lvl, pid, v) => {
+    for(const n of build(rs, keys[lvl])){
+      const id = pid + '|' + n.k, kids = lvl < keys.length - 1, vv = lvl === 0 ? vOf(n) : v;
+      h += line(n, lvl, id, vv, kids);
+      if(kids && S.exp.has(id)) walk(n.rows, lvl + 1, id, vv);
+    }
+  };
+  walk(rows, 0, tid, null);
+  h += line(sum(rows, 'Total Geral'), 0, '', totV, false, ' tot');
+  return h + '</tbody></table></div>';
+}
+
+const pacKeys = [r => r.pac, r => r.sub, r => r.pac === 'PLANTÕES E LOJAS' ? (r.loja || '(sem loja)') : (r.cod + ' · ' + r.conta)];
+const regKeys = [r => r.reg, r => r.pac, r => r.sub];
 
 function renderPeriod(mode){
-  const all=S.ro.filter(r=>mode==='mes'?r.mes===S.mes:r.mes<=S.mes);
-  const sel=S.reg?all.filter(inReg):all;
-  const v=vgvFor(S.reg,mode),tot=sum(sel),[o,r]=ratios(tot,v),d=tot.real-tot.meta;
-  const per=mode==='mes'?`MÊS DE ${MESES[S.mes-1]}`:`ACUMULADO (JANEIRO A ${MESES[S.mes-1]})`;
-  const kp=(l,x,c)=>`<div class="kpi"><div class="label">${l}</div><div class="value"${c||''}>${x}</div></div>`;
-  $('p-'+mode).innerHTML=
-   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2))}${kp('VGV Real','R$ '+(v?short(v.R):'-'))}</div>
-    <div class="panel"><h2>Despesas por pacote — ${per}${S.reg?' · '+esc(S.reg):''}</h2>${table(sel,pacKeys,()=>v,v,mode+'P')}</div>
-    <div class="panel"><h2>Despesas por regional — ${per}</h2>${table(all,regKeys,n=>vgvFor(n.k,mode),vgvFor('',mode),mode+'R')}</div>`;
+  const all = S.ro.filter(r => mode === 'mes' ? r.mes === S.mes : r.mes <= S.mes);
+  const sel = S.reg ? all.filter(inReg) : all;
+  const v = vgvFor(S.reg, mode), tot = sum(sel), [o, r] = ratios(tot, v), d = tot.real - tot.meta;
+  const per = mode === 'mes' ? `MÊS DE ${MESES[S.mes - 1]}` : `ACUMULADO (JANEIRO A ${MESES[S.mes - 1]})`;
+  const kp = (l, x, c) => `<div class="kpi"><div class="label">${l}</div><div class="value"${c || ''}>${x}</div></div>`;
+  $('p-' + mode).innerHTML =
+   `<div class="kpi-row">${kp('Meta', 'R$ ' + fmt(tot.meta))}${kp('Real', 'R$ ' + fmt(tot.real))}${kp('Desvio', 'R$ ' + fmt(d))}${kp('% Desvio', tot.meta ? pct(d / tot.meta) : '-')}${kp('ORÇ. % VGV', pct(o, 2))}${kp('REAL. % VGV', pct(r, 2))}${kp('VGV Real', 'R$ ' + (v ? short(v.R) : '-'))}</div>
+    <div class="panel"><h2>Despesas por pacote — ${per}${S.reg ? ' · ' + esc(S.reg) : ''}</h2>${table(sel, pacKeys, () => v, v, mode + 'P')}</div>
+    <div class="panel"><h2>Despesas por regional — ${per}</h2>${table(all, regKeys, n => vgvFor(n.k, mode), vgvFor('', mode), mode + 'R')}</div>`;
 }
 
-const MS=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+/* ===== Gráficos ===== */
+const MS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 function series(){
-  return Array.from({length:12},(_,i)=>{
-    const m=i+1,n=sum(S.ro.filter(r=>r.mes===m&&inReg(r))),v=vgvFor(S.reg,'mes',m),[o,r]=ratios(n,v);
-    return{m,meta:n.meta,real:n.real,vm:v?v.M:null,vr:v?v.R:null,o,r};
+  return Array.from({ length: 12 }, (_, i) => {
+    const m = i + 1, n = sum(S.ro.filter(r => r.mes === m && inReg(r))), v = vgvFor(S.reg, 'mes', m), [o, r] = ratios(n, v);
+    return { m, meta: n.meta, real: n.real, vm: v ? v.M : null, vr: v ? v.R : null, o, r };
   });
 }
 
 function lineChart(sr){
-  const W=1000,H=300,L=30,R=30,T=40,B=36,iw=W-L-R,ih=H-T-B,vals=sr.flatMap(s=>[s.o,s.r]).filter(x=>x!=null);
-  if(!vals.length)return'<div class="note">Sem VGV para esta regional.</div>';
-  const mx=Math.max(...vals)*1.2||1,X=i=>L+iw*(i+.5)/12,Y=v=>T+ih*(1-v/mx);
-  const path=k=>{let d='',pen=false;sr.forEach((s,i)=>{if(s[k]==null){pen=false;return;}d+=(pen?'L':'M')+X(i)+','+Y(s[k]);pen=true;});return d;};
-  let g=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#ccc"/><path d="${path('o')}" fill="none" stroke="#9AA0A6" stroke-width="2.5" stroke-dasharray="7 5"/><path d="${path('r')}" fill="none" stroke="#5F6368" stroke-width="2.5"/>`;
-  sr.forEach((s,i)=>{
-    if(s.o!=null)g+=`<text x="${X(i)}" y="${Y(s.o)+17}" text-anchor="middle" font-size="11" fill="#80868B">${pct(s.o,2)}</text>`;
-    if(s.r!=null){const t=pct(s.r,2),w=t.length*7+8,x=X(i);g+=`<circle cx="${x}" cy="${Y(s.r)}" r="3.5" fill="#5F6368"/><rect x="${x-w/2}" y="${Y(s.r)-28}" width="${w}" height="18" rx="2" fill="${s.o!=null&&s.r>s.o?'#E53935':'#1E9E5A'}"/><text x="${x}" y="${Y(s.r)-15}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${t}</text>`;}
-    g+=`<text x="${X(i)}" y="${H-12}" text-anchor="middle" font-size="11" font-weight="700" fill="#80868B">${MS[i]}/26</text>`;
+  const W = 1000, H = 300, L = 30, R = 30, T = 40, B = 36, iw = W - L - R, ih = H - T - B, vals = sr.flatMap(s => [s.o, s.r]).filter(x => x != null);
+  if(!vals.length) return '<div class="note">Sem VGV para esta regional.</div>';
+  const mx = Math.max(...vals) * 1.2 || 1, X = i => L + iw * (i + .5) / 12, Y = v => T + ih * (1 - v / mx);
+  const path = k => {
+    let d = '', pen = false;
+    sr.forEach((s, i) => { if(s[k] == null){ pen = false; return; } d += (pen ? 'L' : 'M') + X(i) + ',' + Y(s[k]); pen = true; });
+    return d;
+  };
+  let g = `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#ccc"/><path d="${path('o')}" fill="none" stroke="#9AA0A6" stroke-width="2.5" stroke-dasharray="7 5"/><path d="${path('r')}" fill="none" stroke="#5F6368" stroke-width="2.5"/>`;
+  sr.forEach((s, i) => {
+    if(s.o != null) g += `<text x="${X(i)}" y="${Y(s.o) + 17}" text-anchor="middle" font-size="11" fill="#80868B">${pct(s.o, 2)}</text>`;
+    if(s.r != null){
+      const t = pct(s.r, 2), w = t.length * 7 + 8, x = X(i);
+      g += `<circle cx="${x}" cy="${Y(s.r)}" r="3.5" fill="#5F6368"/><rect x="${x - w / 2}" y="${Y(s.r) - 28}" width="${w}" height="18" rx="2" fill="${s.o != null && s.r > s.o ? '#E53935' : '#1E9E5A'}"/><text x="${x}" y="${Y(s.r) - 15}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${t}</text>`;
+    }
+    g += `<text x="${X(i)}" y="${H - 12}" text-anchor="middle" font-size="11" font-weight="700" fill="#80868B">${MS[i]}/26</text>`;
   });
-  return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
 }
 
 function barChart(sr){
-  const W=1000,H=300,L=30,R=30,T=34,B=36,iw=W-L-R,ih=H-T-B,mx=Math.max(...sr.flatMap(s=>[s.meta,s.real]))*1.2||1,X=i=>L+iw*(i+.5)/12,Y=v=>T+ih*(1-v/mx),bw=iw/12*.6;
-  let g=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#ccc"/>`,d='';
-  sr.forEach((s,i)=>{
-    if(s.real>0)g+=`<rect x="${X(i)-bw/2}" y="${Y(s.real)}" width="${bw}" height="${Y(0)-Y(s.real)}" fill="${s.real>s.meta?'#E53935':'#1E9E5A'}"/><text x="${X(i)}" y="${Y(0)-8}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${short(s.real)}</text>`;
-    d+=(i?'L':'M')+X(i)+','+Y(s.meta);
+  const W = 1000, H = 300, L = 30, R = 30, T = 34, B = 36, iw = W - L - R, ih = H - T - B, mx = Math.max(...sr.flatMap(s => [s.meta, s.real])) * 1.2 || 1, X = i => L + iw * (i + .5) / 12, Y = v => T + ih * (1 - v / mx), bw = iw / 12 * .6;
+  let g = `<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#ccc"/>`, d = '';
+  sr.forEach((s, i) => {
+    if(s.real > 0) g += `<rect x="${X(i) - bw / 2}" y="${Y(s.real)}" width="${bw}" height="${Y(0) - Y(s.real)}" fill="${s.real > s.meta ? '#E53935' : '#1E9E5A'}"/><text x="${X(i)}" y="${Y(0) - 8}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${short(s.real)}</text>`;
+    d += (i ? 'L' : 'M') + X(i) + ',' + Y(s.meta);
   });
-  g+=`<path d="${d}" fill="none" stroke="#7B7F85" stroke-width="2.5"/>`;
-  sr.forEach((s,i)=>{g+=`<circle cx="${X(i)}" cy="${Y(s.meta)}" r="3" fill="#7B7F85"/><text x="${X(i)}" y="${Y(Math.max(s.meta,s.real))-8}" text-anchor="middle" font-size="11" font-weight="700" fill="#444">${short(s.meta)}</text><text x="${X(i)}" y="${H-12}" text-anchor="middle" font-size="11" font-weight="700" fill="#80868B">${MS[i]}/26</text>`;});
-  return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
+  g += `<path d="${d}" fill="none" stroke="#7B7F85" stroke-width="2.5"/>`;
+  sr.forEach((s, i) => {
+    g += `<circle cx="${X(i)}" cy="${Y(s.meta)}" r="3" fill="#7B7F85"/><text x="${X(i)}" y="${Y(Math.max(s.meta, s.real)) - 8}" text-anchor="middle" font-size="11" font-weight="700" fill="#444">${short(s.meta)}</text><text x="${X(i)}" y="${H - 12}" text-anchor="middle" font-size="11" font-weight="700" fill="#80868B">${MS[i]}/26</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
 }
 
 function renderCharts(){
-  const sr=series(),row=(l,f)=>`<tr><td class="left"><b>${l}</b></td>${sr.map(s=>`<td>${f(s)}</td>`).join('')}</tr>`;
-  const tb=`<div class="table-scroll"><table><thead><tr><th class="left">${S.reg?esc(S.reg):'Regionais (Tudo)'}</th>${MS.map(m=>`<th>${m}/26</th>`).join('')}</tr></thead><tbody>
-    ${row('DESP META',s=>short(s.meta))}${row('DESP REAL',s=>short(s.real))}${row('VGV META',s=>s.vm==null?'-':short(s.vm))}${row('VGV REAL',s=>s.vr==null?'-':short(s.vr))}${row('Desp/VGV Meta',s=>pct(s.o,2))}${row('Desp/VGV Real',s=>pct(s.r,2))}</tbody></table></div>`;
-  $('p-graf').innerHTML=`<div class="panel"><h2>Despesa / VGV por mês${S.reg?' · '+esc(S.reg):''}</h2>${tb}${lineChart(sr)}
+  const sr = series(), row = (l, f) => `<tr><td class="left"><b>${l}</b></td>${sr.map(s => `<td>${f(s)}</td>`).join('')}</tr>`;
+  const tb = `<div class="table-scroll"><table><thead><tr><th class="left">${S.reg ? esc(S.reg) : 'Regionais (Tudo)'}</th>${MS.map(m => `<th>${m}/26</th>`).join('')}</tr></thead><tbody>
+    ${row('DESP META', s => short(s.meta))}${row('DESP REAL', s => short(s.real))}${row('VGV META', s => s.vm == null ? '-' : short(s.vm))}${row('VGV REAL', s => s.vr == null ? '-' : short(s.vr))}${row('Desp/VGV Meta', s => pct(s.o, 2))}${row('Desp/VGV Real', s => pct(s.r, 2))}</tbody></table></div>`;
+  $('p-graf').innerHTML = `<div class="panel"><h2>Despesa / VGV por mês${S.reg ? ' · ' + esc(S.reg) : ''}</h2>${tb}${lineChart(sr)}
     <div class="note">Linha cheia: Real · tracejada: Meta · vermelho = Real acima da meta, verde = abaixo.</div></div>
-    <div class="panel"><h2>Despesa real x meta por mês${S.reg?' · '+esc(S.reg):''}</h2>${barChart(sr)}
+    <div class="panel"><h2>Despesa real x meta por mês${S.reg ? ' · ' + esc(S.reg) : ''}</h2>${barChart(sr)}
     <div class="note">Barras: Real (vermelho acima da meta, verde abaixo) · linha: Meta.</div></div>`;
 }
 
-const short=n=>{const a=Math.abs(n),f=(x,u)=>x.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' '+u;return a>=1e9?f(n/1e9,'Bi'):a>=1e6?f(n/1e6,'M'):a>=1e3?f(n/1e3,'K'):fmt(n);};
-function renderAll(){renderPeriod('mes');renderPeriod('acum');renderCharts();}
+const short = n => {
+  const a = Math.abs(n), f = (x, u) => x.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' ' + u;
+  return a >= 1e9 ? f(n / 1e9, 'Bi') : a >= 1e6 ? f(n / 1e6, 'M') : a >= 1e3 ? f(n / 1e3, 'K') : fmt(n);
+};
 
-/* ===== Eventos ===== */
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{
-    document.querySelectorAll('.tab-btn,.tab-content').forEach(e=>e.classList.remove('active'));
-    b.classList.add('active');$(b.dataset.tab).classList.add('active');}));
-  $('fMes').addEventListener('change',e=>{S.mes=+e.target.value;S.page=1;
-    $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;renderAll();});
-  $('fReg').addEventListener('change',e=>{S.reg=e.target.value;S.page=1;renderAll();});
-  document.addEventListener('click',e=>{const tr=e.target.closest('tr.tg');if(!tr)return;
-    const id=tr.dataset.id;S.exp.has(id)?S.exp.delete(id):S.exp.add(id);renderPeriod('mes');renderPeriod('acum');});
-  $('fbFiles').addEventListener('change',async e=>{
-    const b={};
-    for(const f of e.target.files){const n=f.name.toLowerCase(),buf=await f.arrayBuffer();
-      if(/param/.test(n))b.par=buf;else if(/or[cç]ado|real/.test(n))b.ro=buf;}
-    if(!(b.ro&&b.par)){$('fbMsg').textContent='Faltam arquivos: selecione as 2 bases.';return;}
-    try{ingest(b);}catch(err){$('fbMsg').textContent=String(err.message||err);}
+function renderAll(){ renderPeriod('mes'); renderPeriod('acum'); renderCharts(); }
+
+/* ===== Eventos da Aplicação ===== */
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn,.tab-content').forEach(e => e.classList.remove('active'));
+    b.classList.add('active'); $(b.dataset.tab).classList.add('active');
+  }));
+
+  $('fMes').addEventListener('change', e => {
+    S.mes = +e.target.value; S.page = 1;
+    $('tbMeta').innerHTML = `Dados até <b>${MESES[S.mes - 1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
+    renderAll();
   });
+
+  $('fReg').addEventListener('change', e => { S.reg = e.target.value; S.page = 1; renderAll(); });
+
+  document.addEventListener('click', e => {
+    const tr = e.target.closest('tr.tg'); if(!tr) return;
+    const id = tr.dataset.id;
+    S.exp.has(id) ? S.exp.delete(id) : S.exp.add(id);
+    renderPeriod('mes'); renderPeriod('acum');
+  });
+
+  $('fbFiles').addEventListener('change', async e => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    if (files.length === 1) {
+      const buf = await files[0].arrayBuffer();
+      try { ingest({ single: buf }); } catch (err) { $('fbMsg').textContent = String(err.message || err); }
+      return;
+    }
+
+    const b = {};
+    for (const f of files) {
+      const n = f.name.toLowerCase(), buf = await f.arrayBuffer();
+      if (/param/.test(n)) b.par = buf;
+      else if (/vgv/.test(n)) b.vgv = buf;
+      else if (/or[cç]ado|real|base/.test(n)) b.ro = buf;
+    }
+    if (!(b.ro && b.par && b.vgv)) {
+      $('fbMsg').textContent = 'Selecione o arquivo único consolidado ou os 3 arquivos individuais simultaneamente.';
+      return;
+    }
+    try { ingest(b); } catch (err) { $('fbMsg').textContent = String(err.message || err); }
+  });
+
   load();
 });
 </script>
