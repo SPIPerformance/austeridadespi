@@ -60,7 +60,7 @@ tr.tot{background:#E6EFEA;font-weight:700}
   <div class="panel" id="fallback">
     <h2>Não foi possível carregar do GitHub</h2>
     <p id="fbMsg" class="note"></p>
-    <p>Selecione a planilha consolidada (.xlsx) ou os 3 arquivos separados:</p>
+    <p>Selecione manualmente os 3 arquivos (Base Real x Orçado, Parametro Austeridade e VGV Austeridade):</p>
     <input type="file" id="fbFiles" multiple accept=".xlsx,.xlsm">
   </div>
 
@@ -83,7 +83,7 @@ tr.tot{background:#E6EFEA;font-weight:700}
 </div>
 
 <script>
-/* ===== Configuração do GitHub ===== */
+/* ===== Configuração do GitHub (ajuste usuário/repositório/nomes dos arquivos) ===== */
 const GH={user:"SPIPerformance",repo:"austeridadespi",branch:"main"};
 const FILES={ro:"Base Real x Orçado - Desdobrado em Centro de Custo e Conta Contábil.xlsx",par:"Parametro Austeridade.xlsx",vgv:"VGV Austeridade.xlsx"};
 const url=f=>`https://raw.githubusercontent.com/${GH.user}/${GH.repo}/${GH.branch}/${encodeURIComponent(f)}?t=${Date.now()}`;
@@ -96,22 +96,12 @@ const up=s=>String(s==null?'':s).trim();
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const fmt=n=>Math.round(n).toLocaleString('pt-BR');
 const pct=(n,d=1)=>n==null||!isFinite(n)?'-':(n*100).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d})+'%';
-
-const rd=(wb,opt,pattern)=>{
-  let name=wb.SheetNames[0];
-  if(pattern){
-    const found=wb.SheetNames.find(s=>pattern.test(s));
-    if(found) name=found;
-  }
-  return XLSX.utils.sheet_to_json(wb.Sheets[name],Object.assign({header:1,defval:null},opt||{}));
-};
-
+const rd=(wb,opt)=>XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],Object.assign({header:1,defval:null},opt||{}));
 const mergeSensia=r=>(r==='SENSIA CP'||r==='SENSIA RP')?'SENSIA':r;
 
 /* ===== Leitura das bases ===== */
 function parseParam(wb){
-  const rows=rd(wb,{sheetRows:600},/param/i);
-  const h0=(rows[0]||[]).map(up),h1=(rows[1]||[]).map(up);
+  const rows=rd(wb),h0=(rows[0]||[]).map(up),h1=(rows[1]||[]).map(up);
   const cG=h0.indexOf('GST')>=0?h0.indexOf('GST'):27,cR=h0.indexOf('regional')>=0?h0.indexOf('regional'):26;
   const cC=h1.indexOf('NOME CC')>=0?h1.indexOf('NOME CC'):14,cL=h1.indexOf('NOME LOJA')>=0?h1.indexOf('NOME LOJA'):15;
   S.gst={};S.loja={};
@@ -119,104 +109,27 @@ function parseParam(wb){
     if(i>=1&&r[cG]&&r[cR])S.gst[up(r[cG])]=up(r[cR]);
     if(i>=2&&r[cC]&&r[cL])S.loja[up(r[cC])]=up(r[cL]);});
 }
-
 function parseVGV(wb){
-  const rows=rd(wb,{},/vgv/i);
-  if(!rows||!rows.length) return;
-
-  const mc={};
-  let headerRowIdx=-1;
-
-  // 1. Identifica a linha de cabeçalho onde estão os meses
-  for(let r=0; r<Math.min(rows.length, 15); r++){
-    const row=rows[r]||[];
-    let foundCount=0;
-    row.forEach(cell=>{
-      if(MESES.indexOf(up(cell).toUpperCase())>=0) foundCount++;
-    });
-    if(foundCount>=2){
-      headerRowIdx=r;
-      row.forEach((cell, cIdx)=>{
-        const k=MESES.indexOf(up(cell).toUpperCase());
-        if(k>=0) mc[k+1]=cIdx;
-      });
-      break;
-    }
-  }
-
-  if(headerRowIdx<0){
-    (rows[0]||[]).forEach((v,i)=>{const k=MESES.indexOf(up(v).toUpperCase());if(k>=0)mc[k+1]=i;});
-    headerRowIdx=0;
-  }
-
-  const out={};
-
-  // 2. Mapeia as linhas de regional geradas na Tabela Dinâmica
-  for(let i=headerRowIdx+1; i<rows.length && i<60; i++){
-    const r=rows[i]||[];
-    let name='';
-    for(let c=0; c<5; c++){
-      const val=up(r[c]);
-      if(/^(SP INT|SENSIA CP|SENSIA RP|SENSIA|\(Tudo\)|Total Geral)/i.test(val)){
-        name=val;
-        break;
-      }
-    }
-    if(!name) continue;
-
-    let key=name;
-    if(/^SP INT/i.test(name)) key='SP INT';
-    else if(/^SENSIA CP/i.test(name)) key='SENSIA CP';
-    else if(/^SENSIA RP/i.test(name)) key='SENSIA RP';
-    else if(/^SENSIA$/i.test(name)) key='SENSIA';
-    else if(/^(\(Tudo\)|Total Geral)/i.test(name)) key='(Tudo)';
-
-    if(out[key]) continue;
-
-    const o={m:{},r:{}};
-    for(const m in mc){
-      const col=mc[m];
-      o.m[m]=Number(r[col])||0;
-      o.r[m]=Number(r[col+1])||0;
-    }
-    out[key]=o;
-  }
-
-  // 3. FÓRMULAS DA ABA VGV:
-  // SENSIA = SENSIA CP + SENSIA RP
-  const sensiaObj={m:{},r:{}};
-  for(let m=1; m<=12; m++){
-    const cpM=(out['SENSIA CP']&&out['SENSIA CP'].m[m])||0;
-    const rpM=(out['SENSIA RP']&&out['SENSIA RP'].m[m])||0;
-    const cpR=(out['SENSIA CP']&&out['SENSIA CP'].r[m])||0;
-    const rpR=(out['SENSIA RP']&&out['SENSIA RP'].r[m])||0;
-    sensiaObj.m[m]=cpM+rpM;
-    sensiaObj.r[m]=cpR+rpR;
-  }
-  if(out['SENSIA CP'] || out['SENSIA RP']){
-    out['SENSIA']=sensiaObj;
-  }
-
-  // (Tudo) / Total Geral = SP INT + SENSIA
-  const tudoObj={m:{},r:{}};
-  for(let m=1; m<=12; m++){
-    const spM=(out['SP INT']&&out['SP INT'].m[m])||0;
-    const seM=(out['SENSIA']&&out['SENSIA'].m[m])||0;
-    const spR=(out['SP INT']&&out['SP INT'].r[m])||0;
-    const seR=(out['SENSIA']&&out['SENSIA'].r[m])||0;
-    tudoObj.m[m]=spM+seM;
-    tudoObj.r[m]=spR+seR;
-  }
-  if(out['SP INT'] || out['SENSIA']){
-    out['(Tudo)']=tudoObj;
-  }
-
+  /* Reproduz a aba VGV: META = SUMIFS(orçvgv!C; orçvgv!B=regional; orçvgv!D=mês) · REAL = SUMIFS(det_prop vgv!C; A=regional; mês)
+     SENSIA = CP + RP · (Tudo) = soma das regionais · YTD/Mês atual = soma dos meses (ver vgvFor) */
+  const sh=re=>{const n=wb.SheetNames.find(x=>re.test(x.toLowerCase()));if(!n)throw new Error('Aba não encontrada na base VGV: '+re);return XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null});};
+  const MA=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'],out={};
+  const add=(reg,m,k,v)=>{if(!reg||!(m>=1&&m<=12))return;const o=out[reg]||(out[reg]={m:{},r:{}});o[k][m]=(o[k][m]||0)+(Number(v)||0);};
+  const A=sh(/or[çc]vgv/),hA=(A[0]||[]).map(up),ix=(n,d)=>hA.indexOf(n)>=0?hA.indexOf(n):d;
+  const cB=ix('Regional Comercial',1),cC=ix('VGV Orçado',2),cD=ix('Datanum',3);
+  for(let i=1;i<A.length;i++){const r=A[i];if(r&&r[cB])add(up(r[cB]),Number(r[cD]),'m',r[cC]);}
+  const B=sh(/det_prop/),hi=B.findIndex(r=>r&&up(r[0])==='RegionalComercial');
+  for(let i=hi+1;i<B.length;i++){const r=B[i];if(!r||!r[0]||up(r[0])==='Total Geral')continue;
+    let m=MA.indexOf(up(r[1]).toLowerCase().slice(0,3))+1;if(!m)m=Number(r[3]);
+    add(up(r[0]),m,'r',r[2]);}
+  const base=Object.keys(out).filter(n=>n!=='SENSIA'&&n!=='(Tudo)');
+  const mk=n=>out[n]||(out[n]={m:{},r:{}}),SE=mk('SENSIA'),TT=mk('(Tudo)');
+  base.forEach(n=>['m','r'].forEach(k=>{for(let m=1;m<=12;m++){const v=out[n][k][m]||0;TT[k][m]=(TT[k][m]||0)+v;
+    if(n==='SENSIA CP'||n==='SENSIA RP')SE[k][m]=(SE[k][m]||0)+v;}}));
   S.vgv=out;
 }
-
 function parseBase(wb){
-  const rows=rd(wb,{},/or[çc]ado|base|real/i);
-  const hi=rows.findIndex(r=>r&&r.includes('Gestão'));
+  const rows=rd(wb),hi=rows.findIndex(r=>r&&r.includes('Gestão'));
   if(hi<0)throw new Error('Cabeçalho "Gestão" não encontrado na base.');
   const H=rows[hi].map(up),c=n=>H.indexOf(n);
   const cr=H.findIndex(h=>/^Real\s*\d+/.test(h)),co=H.findIndex(h=>/^Or[çc]\s*\d+/.test(h));
@@ -239,6 +152,7 @@ async function load(){
     const keys=Object.keys(FILES);
     let res=await Promise.all(keys.map(k=>fetch(url(FILES[k])).catch(()=>({ok:false,status:'rede'}))));
     if(res.some(r=>!r.ok)){
+      // Nome diferente no repositório: lista a pasta via API do GitHub e acha cada arquivo pelo nome
       const PAT={ro:/or[çc]ado/i,par:/param/i,vgv:/vgv/i};
       const falhas=keys.filter((k,i)=>!res[i].ok).map(k=>decodeURIComponent(url(FILES[k]).split('?')[0]));
       let list=null;
@@ -250,7 +164,7 @@ async function load(){
       list=list.filter(f=>/\.xls[xm]$/i.test(f.name));
       const found={ro:list.find(f=>PAT.ro.test(f.name)),par:list.find(f=>PAT.par.test(f.name)),vgv:list.find(f=>PAT.vgv.test(f.name))};
       const miss=keys.filter(k=>!found[k]).map(k=>FILES[k]);
-      if(miss.length)throw new Error(`Não encontrei no repositório: ${miss.join(' | ')}.`);
+      if(miss.length)throw new Error(`Não encontrei no repositório: ${miss.join(' | ')}. Arquivos vistos: ${list.map(f=>f.name).join(' | ')||'(nenhum .xlsx na raiz)'}`);
       res=await Promise.all(keys.map(k=>fetch(found[k].download_url+'?t='+Date.now())));
       res.forEach((r,i)=>{if(!r.ok)throw new Error(`Erro ao baixar ${found[keys[i]].name} (${r.status})`);});
     }
@@ -258,7 +172,6 @@ async function load(){
     ingest({ro:b[0],par:b[1],vgv:b[2]});
   }catch(e){console.error(e);$('tbMeta').textContent='Falha ao conectar ao GitHub';$('fbMsg').textContent=String(e.message||e);$('fallback').classList.add('visible');}
 }
-
 function populateReg(){
   const regs=[...new Set(S.ro.flatMap(r=>[r.reg,r.raw]))].sort();
   if(S.reg&&!regs.includes(S.reg))S.reg='';
@@ -266,39 +179,31 @@ function populateReg(){
   $('fReg').value=S.reg;
 }
 const inReg=r=>!S.reg||r.reg===S.reg||r.raw===S.reg;
-
 function ingest(b){
   const R=(buf,opt)=>XLSX.read(buf,Object.assign({type:'array'},opt||{}));
-  const wbPar=R(b.par,{sheetRows:600});
-  const wbVgv=R(b.vgv);
-  const wbRo=R(b.ro);
-
-  parseParam(wbPar);
-  parseVGV(wbVgv);
-  S.ro=parseBase(wbRo);
-
+  parseParam(R(b.par,{sheetRows:600}));
+  parseVGV(R(b.vgv));
+  S.ro=parseBase(R(b.ro));
   const ms=[...new Set(S.ro.filter(r=>r.real).map(r=>r.mes))];
   S.mes=ms.length?Math.max(...ms):1;
-  $('fMes').innerHTML=MESES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');
-  $('fMes').value=S.mes;
+  $('fMes').innerHTML=MESES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');$('fMes').value=S.mes;
   populateReg();
   $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
   $('fallback').classList.remove('visible');$('dashboard').classList.add('visible');
   renderAll();
 }
 
-/* ===== Cálculo: VGV e razões (CÓDIGO ORIGINAL REGRA SPI) ===== */
+/* ===== Cálculo: VGV e razões ===== */
 function vgvFor(reg,mode,mm){
   const V=S.vgv,ms=mm?[mm]:mode==='mes'?[S.mes]:Array.from({length:S.mes},(_,i)=>i+1);
   let names;
-  if(!reg){names=Object.keys(V).filter(n=>n!=='(Tudo)'&&n!=='Total Geral');if(V.SENSIA)names=names.filter(n=>n!=='SENSIA CP'&&n!=='SENSIA RP');}
+  if(!reg){names=Object.keys(V).filter(n=>n!=='(Tudo)');if(V.SENSIA)names=names.filter(n=>n!=='SENSIA CP'&&n!=='SENSIA RP');}
   else if(reg==='SENSIA'&&!V.SENSIA)names=['SENSIA CP','SENSIA RP'].filter(n=>V[n]);
   else names=V[reg]?[reg]:[];
   if(!names.length)return null;                         // ex.: DIRETORIA SPI não tem VGV
-  let M=0,R=0;names.forEach(n=>ms.forEach(m=>{if(V[n]){M+=V[n].m[m]||0;R+=V[n].r[m]||0;}}));
+  let M=0,R=0;names.forEach(n=>ms.forEach(m=>{M+=V[n].m[m]||0;R+=V[n].r[m]||0;}));
   return{M,R};
 }
-
 /* ORÇ.%VGV = (Meta - Meta Comissões)/VGV Meta + Meta Comissões/VGV Real ; REAL.%VGV = Real/VGV Real
    (equivale às fórmulas PROCX: comissões contratadas usam VGV Real nas duas pontas) */
 function ratios(n,v){
@@ -307,7 +212,6 @@ function ratios(n,v){
   const o=((a&&!v.M)||(b&&!v.R))?null:(a?a/v.M:0)+(b?b/v.R:0);
   return[o,v.R?n.real/v.R:null];
 }
-
 const farol=d=>{if(d==null)return'-';const x=Math.round(d*1e4)/1e4;return`<span class="fd ${x>=0.01?'f-r':x>0?'f-y':'f-g'}"></span>`;};
 function sum(rows,k){const n={k:k||'',meta:0,real:0,com:0,rows};rows.forEach(r=>{n.meta+=r.orc;n.real+=r.real;if(r.com)n.com+=r.orc;});return n;}
 function build(rows,fn){
@@ -344,6 +248,7 @@ function renderPeriod(mode){
     <div class="panel"><h2>Despesas por pacote — ${per}${S.reg?' · '+esc(S.reg):''}</h2>${table(sel,pacKeys,()=>v,v,mode+'P')}</div>
     <div class="panel"><h2>Despesas por regional — ${per}</h2>${table(all,regKeys,n=>vgvFor(n.k,mode),vgvFor('',mode),mode+'R')}</div>`;
 }
+
 
 const MS=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 function series(){
@@ -398,27 +303,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('fReg').addEventListener('change',e=>{S.reg=e.target.value;S.page=1;renderAll();});
   document.addEventListener('click',e=>{const tr=e.target.closest('tr.tg');if(!tr)return;
     const id=tr.dataset.id;S.exp.has(id)?S.exp.delete(id):S.exp.add(id);renderPeriod('mes');renderPeriod('acum');});
-  
   $('fbFiles').addEventListener('change',async e=>{
     const b={};
-    for(const f of e.target.files){
-      const n=f.name.toLowerCase(),buf=await f.arrayBuffer();
-      if(/param/.test(n))b.par=buf;
-      else if(/vgv/.test(n))b.vgv=buf;
-      else if(/or[cç]ado|real|an[áa]lise/.test(n))b.ro=buf;
-    }
-    if(!(b.ro&&b.par&&b.vgv)){
-      if(e.target.files.length===1){
-        const buf=await e.target.files[0].arrayBuffer();
-        b.ro=buf; b.par=buf; b.vgv=buf;
-      } else {
-        $('fbMsg').textContent='Selecione a planilha consolidada ou os 3 arquivos separados de uma vez.';
-        return;
-      }
-    }
+    for(const f of e.target.files){const n=f.name.toLowerCase(),buf=await f.arrayBuffer();
+      if(/param/.test(n))b.par=buf;else if(/vgv/.test(n))b.vgv=buf;else if(/or[cç]ado|real/.test(n))b.ro=buf;}
+    if(!(b.ro&&b.par&&b.vgv)){$('fbMsg').textContent='Faltam arquivos: selecione os 3 de uma vez.';return;}
     try{ingest(b);}catch(err){$('fbMsg').textContent=String(err.message||err);}
   });
-  
   load();
 });
 </script>
