@@ -99,7 +99,7 @@ tr.tot{background:#E6EFEA;font-weight:700}
 <script>
 /* ===== Configuração do GitHub (ajuste usuário/repositório/nomes dos arquivos) ===== */
 const GH={user:"SPIPerformance",repo:"austeridadespi",branch:"main"};
-const FILES={ro:"Base_Real_x_Orçado_-_Desdobrado_em_Centro_de_Custo_e_Conta_Contábil.xlsx",lc:"Base_Lançamento_Contábil.xlsx",par:"Parametro_Austeridade.xlsx",vgv:"VGV_Austeridade.xlsx"};
+const FILES={ro:"Base Real x Orçado - Desdobrado em Centro de Custo e Conta Contábil.xlsx",lc:"Base Lançamento Contábil.xlsx",par:"Parametro Austeridade.xlsx",vgv:"VGV Austeridade.xlsx"};
 const url=f=>`https://raw.githubusercontent.com/${GH.user}/${GH.repo}/${GH.branch}/${encodeURIComponent(f)}?t=${Date.now()}`;
 
 const MESES=['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
@@ -163,9 +163,14 @@ async function load(){
     if(res.some(r=>!r.ok)){
       // Nome diferente no repositório: lista a pasta via API do GitHub e acha cada arquivo pelo nome
       const PAT={ro:/or[çc]ado/i,lc:/lan[çc]amento/i,par:/param/i,vgv:/vgv/i};
-      const api=await fetch(`https://api.github.com/repos/${GH.user}/${GH.repo}/contents/?ref=${GH.branch}`);
-      if(!api.ok)throw new Error(`Repositório não encontrado ou privado: ${GH.user}/${GH.repo} (${api.status})`);
-      const list=(await api.json()).filter(f=>f.type==='file'&&/\.xls[xm]$/i.test(f.name));
+      const falhas=keys.filter((k,i)=>!res[i].ok).map(k=>decodeURIComponent(url(FILES[k]).split('?')[0]));
+      let list=null;
+      try{const a=await fetch(`https://api.github.com/repos/${GH.user}/${GH.repo}/contents/?ref=${GH.branch}`);
+        if(a.ok)list=(await a.json()).filter(f=>f.type==='file');}catch(_){}
+      if(!list){try{const j=await fetch(`https://data.jsdelivr.com/v1/packages/gh/${GH.user}/${GH.repo}@${GH.branch}?structure=flat`);
+        if(j.ok)list=(await j.json()).files.filter(f=>f.name.split('/').length===2).map(f=>{const n=f.name.slice(1);return{name:n,download_url:`https://raw.githubusercontent.com/${GH.user}/${GH.repo}/${GH.branch}/${encodeURIComponent(n)}`};});}catch(_){}}
+      if(!list)throw new Error(`Não consegui ler o repositório ${GH.user}/${GH.repo} (branch ${GH.branch}). Endereços que deram erro: ${falhas.join(' | ')}`);
+      list=list.filter(f=>/\.xls[xm]$/i.test(f.name));
       const lc=list.find(f=>PAT.lc.test(f.name));
       const found={lc,ro:list.find(f=>PAT.ro.test(f.name)&&f!==lc),par:list.find(f=>PAT.par.test(f.name)),vgv:list.find(f=>PAT.vgv.test(f.name))};
       const miss=keys.filter(k=>!found[k]).map(k=>FILES[k]);
