@@ -158,8 +158,21 @@ function parseBase(wb,isLC){
 /* ===== Carga ===== */
 async function load(){
   try{
-    const res=await Promise.all(Object.values(FILES).map(f=>fetch(url(f))));
-    res.forEach((r,i)=>{if(!r.ok)throw new Error(`Erro ao baixar ${Object.values(FILES)[i]} (${r.status})`);});
+    const keys=Object.keys(FILES);
+    let res=await Promise.all(keys.map(k=>fetch(url(FILES[k])).catch(()=>({ok:false,status:'rede'}))));
+    if(res.some(r=>!r.ok)){
+      // Nome diferente no repositório: lista a pasta via API do GitHub e acha cada arquivo pelo nome
+      const PAT={ro:/or[çc]ado/i,lc:/lan[çc]amento/i,par:/param/i,vgv:/vgv/i};
+      const api=await fetch(`https://api.github.com/repos/${GH.user}/${GH.repo}/contents/?ref=${GH.branch}`);
+      if(!api.ok)throw new Error(`Repositório não encontrado ou privado: ${GH.user}/${GH.repo} (${api.status})`);
+      const list=(await api.json()).filter(f=>f.type==='file'&&/\.xls[xm]$/i.test(f.name));
+      const lc=list.find(f=>PAT.lc.test(f.name));
+      const found={lc,ro:list.find(f=>PAT.ro.test(f.name)&&f!==lc),par:list.find(f=>PAT.par.test(f.name)),vgv:list.find(f=>PAT.vgv.test(f.name))};
+      const miss=keys.filter(k=>!found[k]).map(k=>FILES[k]);
+      if(miss.length)throw new Error(`Não encontrei no repositório: ${miss.join(' | ')}. Arquivos vistos: ${list.map(f=>f.name).join(' | ')||'(nenhum .xlsx na raiz)'}`);
+      res=await Promise.all(keys.map(k=>fetch(found[k].download_url+'?t='+Date.now())));
+      res.forEach((r,i)=>{if(!r.ok)throw new Error(`Erro ao baixar ${found[keys[i]].name} (${r.status})`);});
+    }
     const b=await Promise.all(res.map(r=>r.arrayBuffer()));
     ingest({ro:b[0],lc:b[1],par:b[2],vgv:b[3]});
   }catch(e){console.error(e);$('tbMeta').textContent='Falha ao conectar ao GitHub';$('fbMsg').textContent=String(e.message||e);$('fallback').classList.add('visible');}
