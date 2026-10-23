@@ -68,7 +68,7 @@ tr.tot{background:#E6EFEA;font-weight:700}
     <div class="panel"><div class="filters">
       <label>Mês de referência</label><select id="fMes"></select>
       <label>Regional</label><select id="fReg"></select>
-      <span class="note" style="margin:0">Sensia CP + Sensia RP consideradas juntas (SENSIA).</span>
+      <span class="note" style="margin:0">Tabelas mostram Sensia CP + RP juntas; no filtro Regional dá para escolher SENSIA, SENSIA CP ou SENSIA RP.</span>
     </div></div>
 
     <div class="tabs-nav">
@@ -120,7 +120,7 @@ function parseParam(wb){
   const cC=h1.indexOf('NOME CC')>=0?h1.indexOf('NOME CC'):14,cL=h1.indexOf('NOME LOJA')>=0?h1.indexOf('NOME LOJA'):15;
   S.gst={};S.loja={};
   rows.forEach((r,i)=>{if(!r)return;
-    if(i>=1&&r[cG]&&r[cR])S.gst[up(r[cG])]=mergeSensia(up(r[cR]));
+    if(i>=1&&r[cG]&&r[cR])S.gst[up(r[cG])]=up(r[cR]);
     if(i>=2&&r[cC]&&r[cL])S.loja[up(r[cC])]=up(r[cL]);});
 }
 function parseVGV(wb){
@@ -145,7 +145,7 @@ function parseBase(wb,isLC){
     const m=Number(x[c('Mês')]),g=up(x[c('Gestão')]);
     if(!g||!(m>=1&&m<=12))continue;           // descarta linhas de total/filtros do export
     const pac=up(x[c('Pacote')]),cc=up(x[c('Centro de custo')]);
-    const o={mes:m,ges:g,reg:S.gst[g]||'(Sem regional)',pac,sub:up(x[c('Subpacote')]),cc,conta:up(x[c('Conta')]),cod:up(x[c('Cod. conta')]),
+    const o={mes:m,ges:g,raw:S.gst[g]||'(Sem regional)',reg:mergeSensia(S.gst[g]||'(Sem regional)'),pac,sub:up(x[c('Subpacote')]),cc,conta:up(x[c('Conta')]),cod:up(x[c('Cod. conta')]),
       real:Number(x[cr])||0,com:pac.toUpperCase()===COMIS};
     if(isLC){let d=up(x[c('Data Lanç')]);d=/^\d{8}$/.test(d)?d.slice(6)+'/'+d.slice(4,6)+'/'+d.slice(0,4):d;
       o.data=d;o.forn=up(x[c('Fornecedor')]);o.doc=up(x[c('Num Doc Referência')]);o.desc=up(x[c('Informação TXTPAT')]);
@@ -182,6 +182,13 @@ async function load(){
     ingest({ro:b[0],lc:b[1],par:b[2],vgv:b[3]});
   }catch(e){console.error(e);$('tbMeta').textContent='Falha ao conectar ao GitHub';$('fbMsg').textContent=String(e.message||e);$('fallback').classList.add('visible');}
 }
+function populateReg(){
+  const regs=[...new Set(S.ro.flatMap(r=>[r.reg,r.raw]))].sort();
+  if(S.reg&&!regs.includes(S.reg))S.reg='';
+  $('fReg').innerHTML='<option value="">(Tudo)</option>'+regs.map(r=>`<option>${esc(r)}</option>`).join('');
+  $('fReg').value=S.reg;
+}
+const inReg=r=>!S.reg||r.reg===S.reg||r.raw===S.reg;
 function ingest(b){
   const R=(buf,opt)=>XLSX.read(buf,Object.assign({type:'array'},opt||{}));
   parseParam(R(b.par,{sheetRows:600}));
@@ -191,8 +198,7 @@ function ingest(b){
   const ms=[...new Set(S.ro.filter(r=>r.real).map(r=>r.mes))];
   S.mes=ms.length?Math.max(...ms):1;
   $('fMes').innerHTML=MESES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');$('fMes').value=S.mes;
-  const regs=[...new Set(S.ro.map(r=>r.reg))].sort();
-  $('fReg').innerHTML='<option value="">(Tudo)</option>'+regs.map(r=>`<option>${esc(r)}</option>`).join('');
+  populateReg();
   $('lcPac').innerHTML='<option value="">Todos os pacotes</option>'+[...new Set(S.lc.map(r=>r.pac))].sort().map(p=>`<option>${esc(p)}</option>`).join('');
   $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
   $('fallback').classList.remove('visible');$('dashboard').classList.add('visible');
@@ -245,7 +251,7 @@ const regKeys=[r=>r.reg,r=>r.pac,r=>r.sub];
 
 function renderPeriod(mode){
   const all=S.ro.filter(r=>mode==='mes'?r.mes===S.mes:r.mes<=S.mes);
-  const sel=S.reg?all.filter(r=>r.reg===S.reg):all;
+  const sel=S.reg?all.filter(inReg):all;
   const v=vgvFor(S.reg,mode),tot=sum(sel),[o,r]=ratios(tot,v),d=tot.real-tot.meta;
   const per=mode==='mes'?`MÊS DE ${MESES[S.mes-1]}`:`ACUMULADO (JANEIRO A ${MESES[S.mes-1]})`;
   const kp=(l,x,c)=>`<div class="kpi"><div class="label">${l}</div><div class="value"${c||''}>${x}</div></div>`;
@@ -259,11 +265,11 @@ function renderPeriod(mode){
 /* ===== Lançamentos ===== */
 function renderLC(){
   const mode=$('lcMode').value,pac=$('lcPac').value,q=$('lcQ').value.toLowerCase().trim();
-  const f=S.lc.filter(r=>(mode==='mes'?r.mes===S.mes:r.mes<=S.mes)&&(!S.reg||r.reg===S.reg)&&(!pac||r.pac===pac)&&(!q||r.txt.includes(q)));
+  const f=S.lc.filter(r=>(mode==='mes'?r.mes===S.mes:r.mes<=S.mes)&&inReg(r)&&(!pac||r.pac===pac)&&(!q||r.txt.includes(q)));
   const tot=f.reduce((a,r)=>a+r.real,0),ps=50,max=Math.max(1,Math.ceil(f.length/ps));
   S.page=Math.min(Math.max(1,S.page),max);
   const st=(S.page-1)*ps;
-  $('lcBody').innerHTML=f.slice(st,st+ps).map(r=>`<tr><td class="left">${esc(r.data)}</td><td class="left">${esc(r.reg)}</td><td class="left">${esc(r.cc)}</td><td class="left">${esc(r.pac)}</td><td class="left">${esc(r.sub)}</td><td class="left">${esc(r.conta)}</td><td class="left">${esc(r.forn)}</td><td class="left">${esc(r.doc)}</td><td class="left" style="max-width:320px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.desc)}">${esc(r.desc)}</td><td>${fmt(r.real)}</td></tr>`).join('');
+  $('lcBody').innerHTML=f.slice(st,st+ps).map(r=>`<tr><td class="left">${esc(r.data)}</td><td class="left">${esc(r.raw)}</td><td class="left">${esc(r.cc)}</td><td class="left">${esc(r.pac)}</td><td class="left">${esc(r.sub)}</td><td class="left">${esc(r.conta)}</td><td class="left">${esc(r.forn)}</td><td class="left">${esc(r.doc)}</td><td class="left" style="max-width:320px;overflow:hidden;text-overflow:ellipsis" title="${esc(r.desc)}">${esc(r.desc)}</td><td>${fmt(r.real)}</td></tr>`).join('');
   $('lcInfo').textContent=`${f.length.toLocaleString('pt-BR')} lançamentos · Total R$ ${fmt(tot)} · Página ${S.page}/${max}`;
 }
 function renderAll(){renderPeriod('mes');renderPeriod('acum');renderLC();}
