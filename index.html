@@ -58,7 +58,7 @@ tr.tot{background:#E6EFEA;font-weight:700}
   </div>
 
   <div class="panel" id="fallback">
-    <h2>Carregar arquivo de dados</h2>
+    <h2>Não foi possível carregar do GitHub</h2>
     <p id="fbMsg" class="note"></p>
     <p>Selecione a planilha consolidada (.xlsx) ou os 3 arquivos separados:</p>
     <input type="file" id="fbFiles" multiple accept=".xlsx,.xlsm">
@@ -127,54 +127,49 @@ function parseVGV(wb){
   const mc={};
   let headerRowIdx=-1;
 
-  // Busca a linha onde estão mapeados os meses (JANEIRO, FEVEREIRO...)
+  // 1. Identifica a linha de cabeçalho onde estão os meses
   for(let r=0; r<Math.min(rows.length, 15); r++){
     const row=rows[r]||[];
     let foundCount=0;
     row.forEach(cell=>{
-      const txt=up(cell).toUpperCase();
-      if(MESES.indexOf(txt)>=0) foundCount++;
+      if(MESES.indexOf(up(cell).toUpperCase())>=0) foundCount++;
     });
     if(foundCount>=2){
       headerRowIdx=r;
       row.forEach((cell, cIdx)=>{
-        const txt=up(cell).toUpperCase();
-        const mIdx=MESES.indexOf(txt);
-        if(mIdx>=0) mc[mIdx+1]=cIdx;
+        const k=MESES.indexOf(up(cell).toUpperCase());
+        if(k>=0) mc[k+1]=cIdx;
       });
       break;
     }
   }
 
   if(headerRowIdx<0){
-    (rows[0]||[]).forEach((v,i)=>{
-      const k=MESES.indexOf(up(v).toUpperCase());
-      if(k>=0) mc[k+1]=i;
-    });
+    (rows[0]||[]).forEach((v,i)=>{const k=MESES.indexOf(up(v).toUpperCase());if(k>=0)mc[k+1]=i;});
     headerRowIdx=0;
   }
 
   const out={};
 
-  // Mapeia as linhas de regionais encontradas na tabela dinâmica
+  // 2. Mapeia as linhas de regional geradas na Tabela Dinâmica
   for(let i=headerRowIdx+1; i<rows.length && i<60; i++){
     const r=rows[i]||[];
-    let regName='';
+    let name='';
     for(let c=0; c<5; c++){
       const val=up(r[c]);
       if(/^(SP INT|SENSIA CP|SENSIA RP|SENSIA|\(Tudo\)|Total Geral)/i.test(val)){
-        regName=val;
+        name=val;
         break;
       }
     }
-    if(!regName) continue;
+    if(!name) continue;
 
-    let key=regName;
-    if(/^SP INT/i.test(regName)) key='SP INT';
-    else if(/^SENSIA CP/i.test(regName)) key='SENSIA CP';
-    else if(/^SENSIA RP/i.test(regName)) key='SENSIA RP';
-    else if(/^SENSIA$/i.test(regName)) key='SENSIA';
-    else if(/^(\(Tudo\)|Total Geral)/i.test(regName)) key='(Tudo)';
+    let key=name;
+    if(/^SP INT/i.test(name)) key='SP INT';
+    else if(/^SENSIA CP/i.test(name)) key='SENSIA CP';
+    else if(/^SENSIA RP/i.test(name)) key='SENSIA RP';
+    else if(/^SENSIA$/i.test(name)) key='SENSIA';
+    else if(/^(\(Tudo\)|Total Geral)/i.test(name)) key='(Tudo)';
 
     if(out[key]) continue;
 
@@ -187,7 +182,8 @@ function parseVGV(wb){
     out[key]=o;
   }
 
-  // FÓRMULA 1: SENSIA = SENSIA CP + SENSIA RP
+  // 3. FÓRMULAS DA ABA VGV:
+  // SENSIA = SENSIA CP + SENSIA RP
   const sensiaObj={m:{},r:{}};
   for(let m=1; m<=12; m++){
     const cpM=(out['SENSIA CP']&&out['SENSIA CP'].m[m])||0;
@@ -197,11 +193,11 @@ function parseVGV(wb){
     sensiaObj.m[m]=cpM+rpM;
     sensiaObj.r[m]=cpR+rpR;
   }
-  if(out['SENSIA CP']||out['SENSIA RP']){
+  if(out['SENSIA CP'] || out['SENSIA RP']){
     out['SENSIA']=sensiaObj;
   }
 
-  // FÓRMULA 2: (Tudo) / Total Geral = SP INT + SENSIA
+  // (Tudo) / Total Geral = SP INT + SENSIA
   const tudoObj={m:{},r:{}};
   for(let m=1; m<=12; m++){
     const spM=(out['SP INT']&&out['SP INT'].m[m])||0;
@@ -211,7 +207,7 @@ function parseVGV(wb){
     tudoObj.m[m]=spM+seM;
     tudoObj.r[m]=spR+seR;
   }
-  if(out['SP INT']||out['SENSIA']){
+  if(out['SP INT'] || out['SENSIA']){
     out['(Tudo)']=tudoObj;
   }
 
@@ -291,30 +287,20 @@ function ingest(b){
   renderAll();
 }
 
-/* ===== FÓRMULAS ORIGINAIS DE CÁLCULO ===== */
-
+/* ===== Cálculo: VGV e razões (CÓDIGO ORIGINAL REGRA SPI) ===== */
 function vgvFor(reg,mode,mm){
   const V=S.vgv,ms=mm?[mm]:mode==='mes'?[S.mes]:Array.from({length:S.mes},(_,i)=>i+1);
   let names;
-  if(!reg){
-    names=Object.keys(V).filter(n=>n!=='(Tudo)'&&n!=='Total Geral');
-    if(V.SENSIA) names=names.filter(n=>n!=='SENSIA CP'&&n!=='SENSIA RP');
-  }
-  else if(reg==='SENSIA'&&!V.SENSIA) names=['SENSIA CP','SENSIA RP'].filter(n=>V[n]);
+  if(!reg){names=Object.keys(V).filter(n=>n!=='(Tudo)'&&n!=='Total Geral');if(V.SENSIA)names=names.filter(n=>n!=='SENSIA CP'&&n!=='SENSIA RP');}
+  else if(reg==='SENSIA'&&!V.SENSIA)names=['SENSIA CP','SENSIA RP'].filter(n=>V[n]);
   else names=V[reg]?[reg]:[];
-  
-  if(!names.length)return null;                         // DIRETORIA SPI não tem VGV
-  let M=0,R=0;
-  names.forEach(n=>ms.forEach(m=>{
-    if(V[n]){
-      M+=V[n].m[m]||0;
-      R+=V[n].r[m]||0;
-    }
-  }));
+  if(!names.length)return null;                         // ex.: DIRETORIA SPI não tem VGV
+  let M=0,R=0;names.forEach(n=>ms.forEach(m=>{if(V[n]){M+=V[n].m[m]||0;R+=V[n].r[m]||0;}}));
   return{M,R};
 }
 
-/* ORÇ.%VGV = (Meta - Meta Comissões)/VGV Meta + Meta Comissões/VGV Real ; REAL.%VGV = Real/VGV Real */
+/* ORÇ.%VGV = (Meta - Meta Comissões)/VGV Meta + Meta Comissões/VGV Real ; REAL.%VGV = Real/VGV Real
+   (equivale às fórmulas PROCX: comissões contratadas usam VGV Real nas duas pontas) */
 function ratios(n,v){
   if(!v)return[null,null];
   const a=n.meta-n.com,b=n.com;
@@ -421,7 +407,6 @@ document.addEventListener('DOMContentLoaded',()=>{
       else if(/vgv/.test(n))b.vgv=buf;
       else if(/or[cç]ado|real|an[áa]lise/.test(n))b.ro=buf;
     }
-    // Se selecionou apenas 1 arquivo consolidado
     if(!(b.ro&&b.par&&b.vgv)){
       if(e.target.files.length===1){
         const buf=await e.target.files[0].arrayBuffer();
