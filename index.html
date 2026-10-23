@@ -48,6 +48,9 @@ tr.tot{background:#E6EFEA;font-weight:700}
 .foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
 .note{font-size:11.5px;color:var(--dim);margin-top:10px}
 #dashboard,#fallback{display:none}#dashboard.visible,#fallback.visible{display:block}
+.lg{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:8px;font-size:12px;color:var(--dim)}
+.lg span{display:inline-flex;align-items:center;gap:6px}
+.lg i{display:inline-block}.lg .sq{width:12px;height:12px;border-radius:2px}.lg .ln{width:24px;height:0;border-top:2.5px solid #5F6368}.lg .ds{border-top-style:dashed;border-color:#9AA0A6}
 </style>
 </head>
 <body>
@@ -282,13 +285,14 @@ function barChart(sr){
   return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
 }
 function renderCharts(){
-  const sr=series(),row=(l,f)=>`<tr><td class="left"><b>${l}</b></td>${sr.map(s=>`<td>${f(s)}</td>`).join('')}</tr>`;
-  const tb=`<div class="table-scroll"><table><thead><tr><th class="left">${S.reg?esc(S.reg):'Regionais (Tudo)'}</th>${MS.map(m=>`<th>${m}/26</th>`).join('')}</tr></thead><tbody>
-    ${row('DESP META',s=>short(s.meta))}${row('DESP REAL',s=>short(s.real))}${row('VGV META',s=>s.vm==null?'-':short(s.vm))}${row('VGV REAL',s=>s.vr==null?'-':short(s.vr))}${row('Desp/VGV Meta',s=>pct(s.o,2))}${row('Desp/VGV Real',s=>pct(s.r,2))}</tbody></table></div>`;
-  $('p-graf').innerHTML=`<div class="panel"><h2>Despesa / VGV por mês${S.reg?' · '+esc(S.reg):''}</h2>${tb}${lineChart(sr)}
-    <div class="note">Linha cheia: Real · tracejada: Meta · vermelho = Real acima da meta, verde = abaixo.</div></div>
+  const sr=series();
+  $('p-graf').innerHTML=`<div class="panel"><div class="filters"><label>Regional</label><select id="gReg">${$('fReg').innerHTML}</select></div></div>
+    <div class="panel"><h2>Despesa / VGV por mês${S.reg?' · '+esc(S.reg):''}</h2>${lineChart(sr)}
+    <div class="lg"><span><i class="ln"></i>Real</span><span><i class="ln ds"></i>Meta</span><span><i class="sq" style="background:#E53935"></i>Real acima da meta</span><span><i class="sq" style="background:#1E9E5A"></i>Real abaixo da meta</span></div></div>
     <div class="panel"><h2>Despesa real x meta por mês${S.reg?' · '+esc(S.reg):''}</h2>${barChart(sr)}
-    <div class="note">Barras: Real (vermelho acima da meta, verde abaixo) · linha: Meta.</div></div>`;
+    <div class="lg"><span><i class="sq" style="background:#E53935"></i>Real acima da meta</span><span><i class="sq" style="background:#1E9E5A"></i>Real abaixo da meta</span><span><i class="ln" style="border-color:#7B7F85"></i>Meta</span></div></div>`;
+  const g=$('gReg');g.value=S.reg;
+  g.addEventListener('change',e=>{S.reg=e.target.value;$('fReg').value=S.reg;renderAll();});
 }
 const short=n=>{const a=Math.abs(n),f=(x,u)=>x.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' '+u;return a>=1e9?f(n/1e9,'Bi'):a>=1e6?f(n/1e6,'M'):a>=1e3?f(n/1e3,'K'):fmt(n);};
 function renderAll(){renderPeriod('mes');renderPeriod('acum');renderCharts();}
