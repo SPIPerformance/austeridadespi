@@ -223,7 +223,7 @@ function ratios(n,v){
   const o=((a&&!v.M)||(b&&!v.R))?null:(a?a/v.M:0)+(b?b/v.R:0);
   return[o,v.R?n.real/v.R:null];
 }
-const farol=d=>{if(d==null)return'-';const x=Math.round(d*1e4)/1e4;return`<span class="fd ${x>=0.01?'f-r':x>0?'f-y':'f-g'}"></span>`;};
+const farol=d=>{if(d==null)return'-';const x=Math.round(d*1e4)/1e4;return`<span class="fd ${x>=0.10?'f-r':x>0?'f-y':'f-g'}"></span>`;};
 function sum(rows,k){const n={k:k||'',meta:0,real:0,com:0,rows};rows.forEach(r=>{n.meta+=r.orc;n.real+=r.real;if(r.com)n.com+=r.orc;});return n;}
 function build(rows,fn){
   const g=new Map();
@@ -258,8 +258,9 @@ function renderPeriod(mode){
   const regK=[x=>regKey(x,fR.regs),x=>x.pac,x=>x.sub];
   const kp=(l,x)=>`<div class="kpi"><div class="label">${l}</div><div class="value">${x}</div></div>`;
   const vl='VGV Real'+(fP.mes>S.vgvMax?' (até '+MESES[Math.max(S.vgvMax,1)-1].slice(0,3).toLowerCase()+')':'');
+  const vgvSig=vP?`<span class="fd ${vP.R<=vP.M?'f-g':'f-r'}" style="margin-left:6px;display:inline-block;vertical-align:middle"></span>`:'';
   $('p-'+mode).innerHTML=
-   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2))}${kp(vl,'R$ '+(vP?short(vP.R):'-'))}</div>
+   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2))}${kp(vl,'R$ '+(vP?short(vP.R):'-')+vgvSig)}</div>
     <div class="panel"><h2>Despesas por pacote — ${per(fP)}</h2>${bar(idP)}${table(sel,pacKeys,()=>vP,vP,idP)}</div>
     <div class="panel"><h2>Despesas por regional — ${per(fR)}</h2>${bar(idR)}${table(rowsR,regK,n=>vgvFor(n.k==='SENSIA'?new Set(SEN):new Set([n.k]),msR),vgvFor(fR.regs,msR),idR)}</div>`;
 }
