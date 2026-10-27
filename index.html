@@ -86,7 +86,7 @@ tr.tot{background:#E6EFEA;font-weight:700}
 </div>
 
 <script>
-/* ===== Configuração do GitHub (ajuste usuário/repositório/nomes dos arquivos) ===== */
+/* ===== Configuração do GitHub ===== */
 const GH={user:"SPIPerformance",repo:"austeridadespi",branch:"main"};
 const FILES={ro:"Base Real x Orçado - Desdobrado em Centro de Custo e Conta Contábil.xlsx",par:"Parametro Austeridade.xlsx",vgv:"VGV Austeridade.xlsx"};
 const url=f=>`https://raw.githubusercontent.com/${GH.user}/${GH.repo}/${GH.branch}/${encodeURIComponent(f)}?t=${Date.now()}`;
@@ -113,8 +113,6 @@ function parseParam(wb){
     if(i>=2&&r[cC]&&r[cL])S.loja[up(r[cC])]=up(r[cL]);});
 }
 function parseVGV(wb){
-  /* Reproduz a aba VGV: META = SUMIFS(orçvgv!C; orçvgv!B=regional; orçvgv!D=mês) · REAL = SUMIFS(det_prop vgv!C; A=regional; mês)
-     SENSIA = CP + RP · (Tudo) = soma das regionais · YTD/Mês atual = soma dos meses (ver vgvFor) */
   const sh=re=>{const n=wb.SheetNames.find(x=>re.test(x.toLowerCase()));if(!n)throw new Error('Aba não encontrada na base VGV: '+re);return XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null});};
   const MA=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'],out={};
   const add=(reg,m,k,v)=>{if(!reg||!(m>=1&&m<=12))return;const o=out[reg]||(out[reg]={m:{},r:{}});o[k][m]=(o[k][m]||0)+(Number(v)||0);};
@@ -130,7 +128,7 @@ function parseVGV(wb){
   base.forEach(n=>['m','r'].forEach(k=>{for(let m=1;m<=12;m++){const v=out[n][k][m]||0;TT[k][m]=(TT[k][m]||0)+v;
     if(n==='SENSIA CP'||n==='SENSIA RP')SE[k][m]=(SE[k][m]||0)+v;}}));
   S.vgv=out;
-  S.vgvMax=0;for(let m=1;m<=12;m++)if(TT.r[m]>0)S.vgvMax=m;   // último mês com VGV Real
+  S.vgvMax=0;for(let m=1;m<=12;m++)if(TT.r[m]>0)S.vgvMax=m;
 }
 function parseBase(wb){
   const rows=rd(wb),hi=rows.findIndex(r=>r&&r.includes('Gestão'));
@@ -141,7 +139,7 @@ function parseBase(wb){
   for(let i=hi+1;i<rows.length;i++){
     const x=rows[i];if(!x)continue;
     const m=Number(x[c('Mês')]),g=up(x[c('Gestão')]);
-    if(!g||!(m>=1&&m<=12))continue;           // descarta linhas de total/filtros do export
+    if(!g||!(m>=1&&m<=12))continue;
     const pac=up(x[c('Pacote')]),cc=up(x[c('Centro de custo')]);
     const o={mes:m,ges:g,raw:S.gst[g]||'(Sem regional)',reg:mergeSensia(S.gst[g]||'(Sem regional)'),pac,sub:up(x[c('Subpacote')]),cc,conta:up(x[c('Conta')]),cod:up(x[c('Cod. conta')]),
       real:Number(x[cr])||0,com:pac.toUpperCase()===COMIS};
@@ -156,7 +154,6 @@ async function load(){
     const keys=Object.keys(FILES);
     let res=await Promise.all(keys.map(k=>fetch(url(FILES[k])).catch(()=>({ok:false,status:'rede'}))));
     if(res.some(r=>!r.ok)){
-      // Nome diferente no repositório: lista a pasta via API do GitHub e acha cada arquivo pelo nome
       const PAT={ro:/or[çc]ado/i,par:/param/i,vgv:/vgv/i};
       const falhas=keys.filter((k,i)=>!res[i].ok).map(k=>decodeURIComponent(url(FILES[k]).split('?')[0]));
       let list=null;
@@ -176,13 +173,14 @@ async function load(){
     ingest({ro:b[0],par:b[1],vgv:b[2]});
   }catch(e){console.error(e);$('tbMeta').textContent='Falha ao conectar ao GitHub';$('fbMsg').textContent=String(e.message||e);$('fallback').classList.add('visible');}
 }
-/* ===== Filtros por bloco (multisseleção de regionais) ===== */
+
+/* ===== Filtros por bloco ===== */
 const F={},SEN=['SENSIA CP','SENSIA RP'];
 const fget=id=>F[id]||(F[id]={mes:S.mes,regs:new Set(),open:false});
 const REGS=()=>[...new Set(S.ro.map(r=>r.raw))].sort();
 const inSet=regs=>r=>!regs.size||regs.has(r.raw);
 const bothSen=regs=>regs.has(SEN[0])&&regs.has(SEN[1]);
-const regKey=(r,regs)=>SEN.includes(r.raw)&&(!regs.size||bothSen(regs))?'SENSIA':r.raw;   // CP + RP selecionadas (ou Todas) = SENSIA
+const regKey=(r,regs)=>SEN.includes(r.raw)&&(!regs.size||bothSen(regs))?'SENSIA':r.raw;
 function regLabel(regs){
   if(!regs.size)return'Todas';
   const l=[...regs].filter(x=>!(bothSen(regs)&&SEN.includes(x))).sort();
@@ -201,7 +199,7 @@ function ingest(b){
   S.ro=parseBase(R(b.ro));
   const ms=[...new Set(S.ro.filter(r=>r.real).map(r=>r.mes))];
   S.mes=ms.length?Math.max(...ms):1;
-  if(S.vgvMax&&S.mes>S.vgvMax)S.mes=S.vgvMax;   // padrão: último mês com despesa E VGV Real
+  if(S.vgvMax&&S.mes>S.vgvMax)S.mes=S.vgvMax;
   $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
   $('fallback').classList.remove('visible');$('dashboard').classList.add('visible');
   renderAll();
@@ -210,20 +208,25 @@ function ingest(b){
 /* ===== Cálculo: VGV e razões ===== */
 function vgvFor(regs,ms){
   const V=S.vgv,names=(regs&&regs.size)?[...regs].filter(n=>V[n]):Object.keys(V).filter(n=>n!=='(Tudo)'&&n!=='SENSIA');
-  if(!names.length)return null;                         // ex.: DIRETORIA SPI não tem VGV
+  if(!names.length)return null;
   let M=0,R=0;names.forEach(n=>ms.forEach(m=>{M+=V[n].m[m]||0;R+=V[n].r[m]||0;}));
   return{M,R};
 }
 const msOf=(mode,m)=>mode==='mes'?[m]:Array.from({length:m},(_,i)=>i+1);
-/* ORÇ.%VGV = (Meta - Meta Comissões)/VGV Meta + Meta Comissões/VGV Real ; REAL.%VGV = Real/VGV Real
-   (equivale às fórmulas PROCX: comissões contratadas usam VGV Real nas duas pontas) */
 function ratios(n,v){
   if(!v)return[null,null];
   const a=n.meta-n.com,b=n.com;
   const o=((a&&!v.M)||(b&&!v.R))?null:(a?a/v.M:0)+(b?b/v.R:0);
   return[o,v.R?n.real/v.R:null];
 }
-const farol=d=>{if(d==null)return'-';const x=Math.round(d*1e4)/1e4;return`<span class="fd ${x>=0.10?'f-r':x>0?'f-y':'f-g'}"></span>`;};
+
+/* ===== Farol corrigido para p.p. (0,10 p.p. = 0,0010 em decimal) ===== */
+const farol=d=>{
+  if(d==null)return'-';
+  const pp=Math.round(d*1e4)/100; // converte fração decimal em pontos percentuais (ex: 0.0016 -> 0.16 p.p.)
+  return`<span class="fd ${pp>=0.10?'f-r':pp>0?'f-y':'f-g'}"></span>`;
+};
+
 function sum(rows,k){const n={k:k||'',meta:0,real:0,com:0,rows};rows.forEach(r=>{n.meta+=r.orc;n.real+=r.real;if(r.com)n.com+=r.orc;});return n;}
 function build(rows,fn){
   const g=new Map();
@@ -258,13 +261,18 @@ function renderPeriod(mode){
   const regK=[x=>regKey(x,fR.regs),x=>x.pac,x=>x.sub];
   const kp=(l,x)=>`<div class="kpi"><div class="label">${l}</div><div class="value">${x}</div></div>`;
   const vl='VGV Real'+(fP.mes>S.vgvMax?' (até '+MESES[Math.max(S.vgvMax,1)-1].slice(0,3).toLowerCase()+')':'');
-  const vgvSig=vP?`<span class="fd ${vP.R<=vP.M?'f-g':'f-r'}" style="margin-left:6px;display:inline-block;vertical-align:middle"></span>`:'';
+  
+  // Sinalizador do card REAL. % VGV (Verde se Real <= Orçado; Vermelho se Real > Orçado)
+  const realVgvSig=(r!=null&&o!=null)?`<span class="fd ${r<=o?'f-g':'f-r'}" style="margin-left:6px;display:inline-block;vertical-align:middle"></span>`:'';
+  
+  // Sinalizador do card VGV Real (Verde se Real >= Meta; Vermelho se Real < Meta)
+  const vgvSig=vP?`<span class="fd ${vP.R>=vP.M?'f-g':'f-r'}" style="margin-left:6px;display:inline-block;vertical-align:middle"></span>`:'';
+
   $('p-'+mode).innerHTML=
-   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2))}${kp(vl,'R$ '+(vP?short(vP.R):'-')+vgvSig)}</div>
+   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2)+realVgvSig)}${kp(vl,'R$ '+(vP?short(vP.R):'-')+vgvSig)}</div>
     <div class="panel"><h2>Despesas por pacote — ${per(fP)}</h2>${bar(idP)}${table(sel,pacKeys,()=>vP,vP,idP)}</div>
     <div class="panel"><h2>Despesas por regional — ${per(fR)}</h2>${bar(idR)}${table(rowsR,regK,n=>vgvFor(n.k==='SENSIA'?new Set(SEN):new Set([n.k]),msR),vgvFor(fR.regs,msR),idR)}</div>`;
 }
-
 
 const MS=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 function series(regs){
