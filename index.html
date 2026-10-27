@@ -220,10 +220,10 @@ function ratios(n,v){
   return[o,v.R?n.real/v.R:null];
 }
 
-/* ===== Farol corrigido para p.p. (0,10 p.p. = 0,0010 em decimal) ===== */
+/* ===== Farol da Tabela (0,10 p.p. = 0,0010 em decimal) ===== */
 const farol=d=>{
   if(d==null)return'-';
-  const pp=Math.round(d*1e4)/100; // converte fração decimal em pontos percentuais (ex: 0.0016 -> 0.16 p.p.)
+  const pp=Math.round(d*1e4)/100;
   return`<span class="fd ${pp>=0.10?'f-r':pp>0?'f-y':'f-g'}"></span>`;
 };
 
@@ -262,14 +262,11 @@ function renderPeriod(mode){
   const kp=(l,x)=>`<div class="kpi"><div class="label">${l}</div><div class="value">${x}</div></div>`;
   const vl='VGV Real'+(fP.mes>S.vgvMax?' (até '+MESES[Math.max(S.vgvMax,1)-1].slice(0,3).toLowerCase()+')':'');
   
-  // Sinalizador do card REAL. % VGV (Verde se Real <= Orçado; Vermelho se Real > Orçado)
+  // Sinalizador exclusivo no card REAL. % VGV (Verde se Real <= Orçado; Vermelho se Real > Orçado)
   const realVgvSig=(r!=null&&o!=null)?`<span class="fd ${r<=o?'f-g':'f-r'}" style="margin-left:6px;display:inline-block;vertical-align:middle"></span>`:'';
-  
-  // Sinalizador do card VGV Real (Verde se Real >= Meta; Vermelho se Real < Meta)
-  const vgvSig=vP?`<span class="fd ${vP.R>=vP.M?'f-g':'f-r'}" style="margin-left:6px;display:inline-block;vertical-align:middle"></span>`:'';
 
   $('p-'+mode).innerHTML=
-   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2)+realVgvSig)}${kp(vl,'R$ '+(vP?short(vP.R):'-')+vgvSig)}</div>
+   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2)+realVgvSig)}${kp(vl,'R$ '+(vP?short(vP.R):'-'))}</div>
     <div class="panel"><h2>Despesas por pacote — ${per(fP)}</h2>${bar(idP)}${table(sel,pacKeys,()=>vP,vP,idP)}</div>
     <div class="panel"><h2>Despesas por regional — ${per(fR)}</h2>${bar(idR)}${table(rowsR,regK,n=>vgvFor(n.k==='SENSIA'?new Set(SEN):new Set([n.k]),msR),vgvFor(fR.regs,msR),idR)}</div>`;
 }
