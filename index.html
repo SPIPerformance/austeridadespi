@@ -51,6 +51,11 @@ tr.tot{background:#E6EFEA;font-weight:700}
 .lg{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;margin-top:8px;font-size:12px;color:var(--dim)}
 .lg span{display:inline-flex;align-items:center;gap:6px}
 .lg i{display:inline-block}.lg .sq{width:12px;height:12px;border-radius:2px}.lg .ln{width:24px;height:0;border-top:2.5px solid #5F6368}.lg .ds{border-top-style:dashed;border-color:#9AA0A6}
+.ms{position:relative;display:inline-block}
+.msb{background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--ink);padding:8px 12px;font-family:var(--font);font-size:12.3px;cursor:pointer}
+.msp{position:absolute;z-index:30;top:calc(100% + 4px);left:0;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 14px;box-shadow:0 6px 18px rgba(0,0,0,.12);display:flex;flex-direction:column;gap:7px;min-width:210px}
+.msp label{display:flex;gap:8px;align-items:center;font-size:12.3px;cursor:pointer;color:var(--ink);font-family:var(--font)}
+.msp a{font-size:11.5px;color:var(--green);cursor:pointer;margin-top:2px}
 </style>
 </head>
 <body>
@@ -68,11 +73,6 @@ tr.tot{background:#E6EFEA;font-weight:700}
   </div>
 
   <div id="dashboard">
-    <div class="panel" id="gFilters"><div class="filters">
-      <label>Mês de referência</label><select id="fMes"></select>
-      <label>Regional</label><select id="fReg"></select>
-      <span class="note" style="margin:0">Tabelas mostram Sensia CP + RP juntas; no filtro Regional dá para escolher SENSIA, SENSIA CP ou SENSIA RP.</span>
-    </div></div>
 
     <div class="tabs-nav">
       <button class="tab-btn active" data-tab="p-mes">Fechado no mês</button>
@@ -130,6 +130,7 @@ function parseVGV(wb){
   base.forEach(n=>['m','r'].forEach(k=>{for(let m=1;m<=12;m++){const v=out[n][k][m]||0;TT[k][m]=(TT[k][m]||0)+v;
     if(n==='SENSIA CP'||n==='SENSIA RP')SE[k][m]=(SE[k][m]||0)+v;}}));
   S.vgv=out;
+  S.vgvMax=0;for(let m=1;m<=12;m++)if(TT.r[m]>0)S.vgvMax=m;   // último mês com VGV Real
 }
 function parseBase(wb){
   const rows=rd(wb),hi=rows.findIndex(r=>r&&r.includes('Gestão'));
@@ -175,13 +176,24 @@ async function load(){
     ingest({ro:b[0],par:b[1],vgv:b[2]});
   }catch(e){console.error(e);$('tbMeta').textContent='Falha ao conectar ao GitHub';$('fbMsg').textContent=String(e.message||e);$('fallback').classList.add('visible');}
 }
-function populateReg(){
-  const regs=[...new Set(S.ro.flatMap(r=>[r.reg,r.raw]))].sort();
-  if(S.reg&&!regs.includes(S.reg))S.reg='';
-  $('fReg').innerHTML='<option value="">(Tudo)</option>'+regs.map(r=>`<option>${esc(r)}</option>`).join('');
-  $('fReg').value=S.reg;
+/* ===== Filtros por bloco (multisseleção de regionais) ===== */
+const F={},SEN=['SENSIA CP','SENSIA RP'];
+const fget=id=>F[id]||(F[id]={mes:S.mes,regs:new Set(),open:false});
+const REGS=()=>[...new Set(S.ro.map(r=>r.raw))].sort();
+const inSet=regs=>r=>!regs.size||regs.has(r.raw);
+const bothSen=regs=>regs.has(SEN[0])&&regs.has(SEN[1]);
+const regKey=(r,regs)=>SEN.includes(r.raw)&&(!regs.size||bothSen(regs))?'SENSIA':r.raw;   // CP + RP selecionadas (ou Todas) = SENSIA
+function regLabel(regs){
+  if(!regs.size)return'Todas';
+  const l=[...regs].filter(x=>!(bothSen(regs)&&SEN.includes(x))).sort();
+  if(bothSen(regs))l.unshift('SENSIA');
+  return l.length>2?`${l[0]}, ${l[1]} +${l.length-2}`:l.join(', ');
 }
-const inReg=r=>!S.reg||r.reg===S.reg||r.raw===S.reg;
+function msel(id){
+  const f=fget(id);
+  return`<span class="ms"><button class="msb" data-ms="${id}">Regional: <b>${esc(regLabel(f.regs))}</b> ▾</button>${f.open?`<div class="msp">${REGS().map(r=>`<label><input type="checkbox" data-id="${id}" data-reg="${esc(r)}"${f.regs.has(r)?' checked':''}> ${esc(r)}</label>`).join('')}<div class="note" style="margin:0">CP + RP marcadas = SENSIA</div><a data-clear="${id}">Limpar seleção</a></div>`:''}</span>`;
+}
+const bar=id=>{const f=fget(id);return`<div class="filters" style="margin-bottom:12px"><label>Mês</label><select data-fm="${id}">${MESES.map((n,i)=>`<option value="${i+1}"${f.mes===i+1?' selected':''}>${n}</option>`).join('')}</select>${msel(id)}</div>`;};
 function ingest(b){
   const R=(buf,opt)=>XLSX.read(buf,Object.assign({type:'array'},opt||{}));
   parseParam(R(b.par,{sheetRows:600}));
@@ -189,24 +201,20 @@ function ingest(b){
   S.ro=parseBase(R(b.ro));
   const ms=[...new Set(S.ro.filter(r=>r.real).map(r=>r.mes))];
   S.mes=ms.length?Math.max(...ms):1;
-  $('fMes').innerHTML=MESES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join('');$('fMes').value=S.mes;
-  populateReg();
+  if(S.vgvMax&&S.mes>S.vgvMax)S.mes=S.vgvMax;   // padrão: último mês com despesa E VGV Real
   $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;
   $('fallback').classList.remove('visible');$('dashboard').classList.add('visible');
   renderAll();
 }
 
 /* ===== Cálculo: VGV e razões ===== */
-function vgvFor(reg,mode,mm){
-  const V=S.vgv,ms=mm?[mm]:mode==='mes'?[S.mes]:Array.from({length:S.mes},(_,i)=>i+1);
-  let names;
-  if(!reg){names=Object.keys(V).filter(n=>n!=='(Tudo)');if(V.SENSIA)names=names.filter(n=>n!=='SENSIA CP'&&n!=='SENSIA RP');}
-  else if(reg==='SENSIA'&&!V.SENSIA)names=['SENSIA CP','SENSIA RP'].filter(n=>V[n]);
-  else names=V[reg]?[reg]:[];
+function vgvFor(regs,ms){
+  const V=S.vgv,names=(regs&&regs.size)?[...regs].filter(n=>V[n]):Object.keys(V).filter(n=>n!=='(Tudo)'&&n!=='SENSIA');
   if(!names.length)return null;                         // ex.: DIRETORIA SPI não tem VGV
   let M=0,R=0;names.forEach(n=>ms.forEach(m=>{M+=V[n].m[m]||0;R+=V[n].r[m]||0;}));
   return{M,R};
 }
+const msOf=(mode,m)=>mode==='mes'?[m]:Array.from({length:m},(_,i)=>i+1);
 /* ORÇ.%VGV = (Meta - Meta Comissões)/VGV Meta + Meta Comissões/VGV Real ; REAL.%VGV = Real/VGV Real
    (equivale às fórmulas PROCX: comissões contratadas usam VGV Real nas duas pontas) */
 function ratios(n,v){
@@ -237,27 +245,31 @@ function table(rows,keys,vOf,totV,tid){
   h+=line(sum(rows,'Total Geral'),0,'',totV,false,' tot');
   return h+'</tbody></table></div>';
 }
-const pacKeys=[r=>r.pac,r=>r.sub,r=>r.pac==='PLANTÕES E LOJAS'?(r.loja||'(sem loja)'):(r.cod+' · '+r.conta)];
+const pacKeys=[r=>r.pac,r=>r.sub];
 const regKeys=[r=>r.reg,r=>r.pac,r=>r.sub];
 
 function renderPeriod(mode){
-  const all=S.ro.filter(r=>mode==='mes'?r.mes===S.mes:r.mes<=S.mes);
-  const sel=S.reg?all.filter(inReg):all;
-  const v=vgvFor(S.reg,mode),tot=sum(sel),[o,r]=ratios(tot,v),d=tot.real-tot.meta;
-  const per=mode==='mes'?`MÊS DE ${MESES[S.mes-1]}`:`ACUMULADO (JANEIRO A ${MESES[S.mes-1]})`;
-  const kp=(l,x,c)=>`<div class="kpi"><div class="label">${l}</div><div class="value"${c||''}>${x}</div></div>`;
+  const idP=mode+'P',idR=mode+'R',fP=fget(idP),fR=fget(idR);
+  const inM=f=>r=>mode==='mes'?r.mes===f.mes:r.mes<=f.mes;
+  const per=f=>mode==='mes'?`MÊS DE ${MESES[f.mes-1]}`:`ACUMULADO (JANEIRO A ${MESES[f.mes-1]})`;
+  const sel=S.ro.filter(inM(fP)).filter(inSet(fP.regs)),vP=vgvFor(fP.regs,msOf(mode,fP.mes));
+  const tot=sum(sel),[o,r]=ratios(tot,vP),d=tot.real-tot.meta;
+  const rowsR=S.ro.filter(inM(fR)).filter(inSet(fR.regs)),msR=msOf(mode,fR.mes);
+  const regK=[x=>regKey(x,fR.regs),x=>x.pac,x=>x.sub];
+  const kp=(l,x)=>`<div class="kpi"><div class="label">${l}</div><div class="value">${x}</div></div>`;
+  const vl='VGV Real'+(fP.mes>S.vgvMax?' (até '+MESES[Math.max(S.vgvMax,1)-1].slice(0,3).toLowerCase()+')':'');
   $('p-'+mode).innerHTML=
-   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2))}${kp('VGV Real','R$ '+(v?short(v.R):'-'))}</div>
-    <div class="panel"><h2>Despesas por pacote — ${per}${S.reg?' · '+esc(S.reg):''}</h2>${table(sel,pacKeys,()=>v,v,mode+'P')}</div>
-    <div class="panel"><h2>Despesas por regional — ${per}</h2>${table(all,regKeys,n=>vgvFor(n.k,mode),vgvFor('',mode),mode+'R')}</div>`;
+   `<div class="kpi-row">${kp('Meta','R$ '+fmt(tot.meta))}${kp('Real','R$ '+fmt(tot.real))}${kp('Desvio','R$ '+fmt(d))}${kp('% Desvio',tot.meta?pct(d/tot.meta):'-')}${kp('ORÇ. % VGV',pct(o,2))}${kp('REAL. % VGV',pct(r,2))}${kp(vl,'R$ '+(vP?short(vP.R):'-'))}</div>
+    <div class="panel"><h2>Despesas por pacote — ${per(fP)}</h2>${bar(idP)}${table(sel,pacKeys,()=>vP,vP,idP)}</div>
+    <div class="panel"><h2>Despesas por regional — ${per(fR)}</h2>${bar(idR)}${table(rowsR,regK,n=>vgvFor(n.k==='SENSIA'?new Set(SEN):new Set([n.k]),msR),vgvFor(fR.regs,msR),idR)}</div>`;
 }
 
 
 const MS=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-function series(reg){
-  const ok=r=>!reg||r.reg===reg||r.raw===reg;
+function series(regs){
+  const ok=inSet(regs);
   return Array.from({length:12},(_,i)=>{
-    const m=i+1,n=sum(S.ro.filter(r=>r.mes===m&&ok(r))),v=vgvFor(reg,'mes',m),[o,r]=ratios(n,v);
+    const m=i+1,n=sum(S.ro.filter(r=>r.mes===m&&ok(r))),v=vgvFor(regs,[m]),[o,r]=ratios(n,v);
     return{m,meta:n.meta,real:n.real,vm:v?v.M:null,vr:v?v.R:null,o,r};
   });
 }
@@ -286,12 +298,11 @@ function barChart(sr){
   return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
 }
 function renderCharts(){
-  const opts=$('fReg').innerHTML,sel=(id)=>`<div class="filters" style="margin-bottom:10px"><label>Regional</label><select id="${id}">${opts}</select><span class="note" style="margin:0">Sensia CP + RP juntas em SENSIA; escolha SENSIA CP ou SENSIA RP para ver separadas.</span></div>`;
-  $('p-graf').innerHTML=`<div class="panel"><h2>Despesa / VGV por mês</h2>${sel('gReg1')}${lineChart(series(S.rg1))}
+  const fl=id=>`<div class="filters" style="margin-bottom:10px">${msel(id)}</div>`;
+  $('p-graf').innerHTML=`<div class="panel"><h2>Despesa / VGV por mês</h2>${fl('c1')}${lineChart(series(fget('c1').regs))}
     <div class="lg"><span><i class="ln"></i>Real</span><span><i class="ln ds"></i>Meta</span><span><i class="sq" style="background:#E53935"></i>Real acima da meta</span><span><i class="sq" style="background:#1E9E5A"></i>Real abaixo da meta</span></div></div>
-    <div class="panel"><h2>Despesa real x meta por mês</h2>${sel('gReg2')}${barChart(series(S.rg2))}
+    <div class="panel"><h2>Despesa real x meta por mês</h2>${fl('c2')}${barChart(series(fget('c2').regs))}
     <div class="lg"><span><i class="sq" style="background:#E53935"></i>Real acima da meta</span><span><i class="sq" style="background:#1E9E5A"></i>Real abaixo da meta</span><span><i class="ln" style="border-color:#7B7F85"></i>Meta</span></div></div>`;
-  [['gReg1','rg1'],['gReg2','rg2']].forEach(([id,k])=>{const g=$(id);g.value=S[k];g.addEventListener('change',e=>{S[k]=e.target.value;renderCharts();});});
 }
 const short=n=>{const a=Math.abs(n),f=(x,u)=>x.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+' '+u;return a>=1e9?f(n/1e9,'Bi'):a>=1e6?f(n/1e6,'M'):a>=1e3?f(n/1e3,'K'):fmt(n);};
 function renderAll(){renderPeriod('mes');renderPeriod('acum');renderCharts();}
@@ -300,10 +311,15 @@ function renderAll(){renderPeriod('mes');renderPeriod('acum');renderCharts();}
 document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>{
     document.querySelectorAll('.tab-btn,.tab-content').forEach(e=>e.classList.remove('active'));
-    b.classList.add('active');$(b.dataset.tab).classList.add('active');$('gFilters').style.display=b.dataset.tab==='p-graf'?'none':'';}));
-  $('fMes').addEventListener('change',e=>{S.mes=+e.target.value;S.page=1;
-    $('tbMeta').innerHTML=`Dados até <b>${MESES[S.mes-1]}</b> · Atualizado: <b>${new Date().toLocaleString('pt-BR')}</b>`;renderAll();});
-  $('fReg').addEventListener('change',e=>{S.reg=e.target.value;S.page=1;renderAll();});
+    b.classList.add('active');$(b.dataset.tab).classList.add('active');}));
+  document.addEventListener('change',e=>{const t=e.target;
+    if(t.dataset&&t.dataset.fm){fget(t.dataset.fm).mes=+t.value;renderAll();}
+    else if(t.dataset&&t.dataset.reg){const f=fget(t.dataset.id);t.checked?f.regs.add(t.dataset.reg):f.regs.delete(t.dataset.reg);renderAll();}});
+  document.addEventListener('click',e=>{const t=e.target,b=t.closest('[data-ms]'),c=t.closest('[data-clear]'),all=Object.values(F);
+    if(c){fget(c.dataset.clear).regs.clear();renderAll();return;}
+    if(b){const f=fget(b.dataset.ms),was=f.open;all.forEach(x=>x.open=false);f.open=!was;renderAll();return;}
+    if(t.closest('.msp'))return;
+    if(all.some(x=>x.open)){all.forEach(x=>x.open=false);renderAll();}});
   document.addEventListener('click',e=>{const tr=e.target.closest('tr.tg');if(!tr)return;
     const id=tr.dataset.id;S.exp.has(id)?S.exp.delete(id):S.exp.add(id);renderPeriod('mes');renderPeriod('acum');});
   $('fbFiles').addEventListener('change',async e=>{
