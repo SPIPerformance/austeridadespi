@@ -214,17 +214,22 @@ function vgvFor(regs,ms){
 }
 const msOf=(mode,m)=>mode==='mes'?[m]:Array.from({length:m},(_,i)=>i+1);
 
-/* FÓRMULA ATUALIZADA (ORÇAMENTO FLEXÍVEL):
-   Meta % VGV = (Fixas Orçadas / VGV Real) + (Comissão Orçada / VGV Orçado)
-   - Despesas Fixas (a = n.meta - n.com): Ajustadas pelo VGV Real (v.R) para refletir o peso real da estrutura fixa.
-   - Comissão Orçada (b = n.com): Dividida pelo VGV Orçado (v.M) para manter a taxa % de comissão orçada FIXA.
+/* FÓRMULA DE RAZÕES (% VGV):
+   - o: Meta % VGV = (Fixas Orçadas / VGV Real) + (Comissão Orçada / VGV Orçado) [Orçamento Flexível]
+     * Se v.R > 0 e v.M > 0, ajusta a estrutura fixa pelo VGV Real e mantém a % de comissão orçada estática.
+     * Se v.R for 0/indefinido (meses futuros), utiliza a Meta Pura (n.meta / v.M).
+   - r: Real % VGV = Despesa Real / VGV Real (se v.R > 0 e despesa real > 0, senão null).
 */
 function ratios(n,v){
-  if(!v||!v.M)return[null,null];
-  const a=n.meta-n.com, b=n.com;
-  // Se v.R existir e for > 0, usa (a / v.R) + (b / v.M). Se v.R for 0/ausente (meses futuros), usa (n.meta / v.M).
-  const o = (v.R && v.R > 0) ? (a / v.R) + (b / v.M) : (n.meta / v.M);
-  const r = (v.R && v.R > 0) ? (n.real / v.R) : null;
+  if(!v||(!v.M && !v.R)) return [null, null];
+  const a = n.meta - n.com, b = n.com;
+  let o = null;
+  if (v.R && v.R > 0 && v.M && v.M > 0) {
+    o = (a / v.R) + (b / v.M);
+  } else if (v.M && v.M > 0) {
+    o = n.meta / v.M;
+  }
+  const r = (v.R && v.R > 0 && n.real > 0) ? (n.real / v.R) : null;
   return [o, r];
 }
 
@@ -287,30 +292,112 @@ function series(regs){
     return{m,meta:n.meta,real:n.real,vm:v?v.M:null,vr:v?v.R:null,o,r};
   });
 }
+
+/* ===== Gráfico de Linha Refatorado (% VGV) ===== */
 function lineChart(sr){
-  const W=1000,H=300,L=30,R=30,T=40,B=36,iw=W-L-R,ih=H-T-B,vals=sr.flatMap(s=>[s.o,s.r]).filter(x=>x!=null);
-  if(!vals.length)return'<div class="note">Sem VGV para esta regional.</div>';
-  const mx=Math.max(...vals)*1.2||1,X=i=>L+iw*(i+.5)/12,Y=v=>T+ih*(1-v/mx);
-  const path=k=>{let d='',pen=false;sr.forEach((s,i)=>{if(s[k]==null){pen=false;return;}d+=(pen?'L':'M')+X(i)+','+Y(s[k]);pen=true;});return d;};
-  let g=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#ccc"/><path d="${path('o')}" fill="none" stroke="#9AA0A6" stroke-width="2.5" stroke-dasharray="7 5"/><path d="${path('r')}" fill="none" stroke="#5F6368" stroke-width="2.5"/>`;
+  const validVals=sr.flatMap(s=>[s.o,s.r]).filter(x=>x!=null&&x>0);
+  if(!validVals.length)return'<div class="note">Sem VGV para esta regional.</div>';
+  
+  const mx=Math.max(...validVals)*1.35||1.0;
+  const W=1000,H=340,L=40,R=30,T=45,B=50;
+  const iw=W-L-R,ih=H-T-B;
+  const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx);
+  
+  const path=k=>{
+    let d='',pen=false;
+    sr.forEach((s,i)=>{
+      const v=s[k];
+      if(v==null||v<=0){pen=false;return;}
+      d+=(pen?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);
+      pen=true;
+    });
+    return d;
+  };
+  
+  const y0=Y(0);
+  let g=`<line x1="${L}" x2="${W-R}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="#D1D5DB" stroke-width="1.5"/>`;
+  const pO=path('o'), pR=path('r');
+  if(pO)g+=`<path d="${pO}" fill="none" stroke="#9AA0A6" stroke-width="2.5" stroke-dasharray="6 4"/>`;
+  if(pR)g+=`<path d="${pR}" fill="none" stroke="#5F6368" stroke-width="2.5"/>`;
+  
   sr.forEach((s,i)=>{
-    if(s.o!=null)g+=`<text x="${X(i)}" y="${Y(s.o)+17}" text-anchor="middle" font-size="11" fill="#80868B">${pct(s.o,2)}</text>`;
-    if(s.r!=null){const t=pct(s.r,2),w=t.length*7+8,x=X(i);g+=`<circle cx="${x}" cy="${Y(s.r)}" r="3.5" fill="#5F6368"/><rect x="${x-w/2}" y="${Y(s.r)-28}" width="${w}" height="18" rx="2" fill="${s.o!=null&&s.r>s.o?'#E53935':'#1E9E5A'}"/><text x="${x}" y="${Y(s.r)-15}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${t}</text>`;}
-    g+=`<text x="${X(i)}" y="${H-12}" text-anchor="middle" font-size="11" font-weight="700" fill="#80868B">${MS[i]}/26</text>`;
+    const x=X(i);
+    g+=`<text x="${x.toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#646D7A">${MS[i]}/26</text>`;
+    
+    if(s.o!=null&&s.o>0){
+      const yo=Y(s.o), yr=(s.r!=null&&s.r>0)?Y(s.r):null;
+      let metaY=yo+18;
+      if(yr!=null&&Math.abs(yo-yr)<25){
+        metaY=yr<yo?yo+20:yo-12;
+      }
+      g+=`<text x="${x.toFixed(1)}" y="${metaY.toFixed(1)}" text-anchor="middle" font-size="11" fill="#71717A">${pct(s.o,2)}</text>`;
+    }
+    
+    if(s.r!=null&&s.r>0){
+      const yr=Y(s.r), t=pct(s.r,2), w=t.length*7.2+10;
+      const isRed=s.o!=null&&(s.r-s.o>0.00005);
+      g+=`<circle cx="${x.toFixed(1)}" cy="${yr.toFixed(1)}" r="4" fill="#5F6368"/>`;
+      g+=`<rect x="${(x-w/2).toFixed(1)}" y="${(yr-26).toFixed(1)}" width="${w.toFixed(1)}" height="18" rx="4" fill="${isRed?'#E53935':'#1E9E5A'}"/>`;
+      g+=`<text x="${x.toFixed(1)}" y="${(yr-13).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${t}</text>`;
+    }
   });
   return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
 }
+
+/* ===== Gráfico de Barras Refatorado (Despesa R$) ===== */
 function barChart(sr){
-  const W=1000,H=300,L=30,R=30,T=34,B=36,iw=W-L-R,ih=H-T-B,mx=Math.max(...sr.flatMap(s=>[s.meta,s.real]))*1.2||1,X=i=>L+iw*(i+.5)/12,Y=v=>T+ih*(1-v/mx),bw=iw/12*.6;
-  let g=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#ccc"/>`,d='';
+  const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null&&x>0);
+  if(!validVals.length)return'<div class="note">Sem dados para esta regional.</div>';
+  
+  const mx=Math.max(...validVals)*1.35||1.0;
+  const W=1000,H=340,L=40,R=30,T=45,B=50;
+  const iw=W-L-R,ih=H-T-B;
+  const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx), bw=iw/12*.55;
+  
+  const y0=Y(0);
+  let g=`<line x1="${L}" x2="${W-R}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="#D1D5DB" stroke-width="1.5"/>`;
+  
+  // Barras do Real
   sr.forEach((s,i)=>{
-    if(s.real>0)g+=`<rect x="${X(i)-bw/2}" y="${Y(s.real)}" width="${bw}" height="${Y(0)-Y(s.real)}" fill="${s.real>s.meta?'#E53935':'#1E9E5A'}"/><text x="${X(i)}" y="${Y(0)-8}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${short(s.real)}</text>`;
-    d+=(i?'L':'M')+X(i)+','+Y(s.meta);
+    const x=X(i);
+    g+=`<text x="${x.toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#646D7A">${MS[i]}/26</text>`;
+    if(s.real!=null&&s.real>0){
+      const yr=Y(s.real), hBar=y0-yr;
+      const isRed=s.meta!=null&&s.meta>0&&(s.real>s.meta);
+      g+=`<rect x="${(x-bw/2).toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${hBar.toFixed(1)}" rx="3" fill="${isRed?'#E53935':'#1E9E5A'}"/>`;
+      const textY=hBar>28?yr+16:yr-6;
+      const textCol=hBar>28?'#fff':'#333';
+      g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${short(s.real)}</text>`;
+    }
   });
-  g+=`<path d="${d}" fill="none" stroke="#7B7F85" stroke-width="2.5"/>`;
-  sr.forEach((s,i)=>{g+=`<circle cx="${X(i)}" cy="${Y(s.meta)}" r="3" fill="#7B7F85"/><text x="${X(i)}" y="${Y(Math.max(s.meta,s.real))-8}" text-anchor="middle" font-size="11" font-weight="700" fill="#444">${short(s.meta)}</text><text x="${X(i)}" y="${H-12}" text-anchor="middle" font-size="11" font-weight="700" fill="#80868B">${MS[i]}/26</text>`;});
+  
+  // Linha da Meta
+  let dPath='',pen=false;
+  sr.forEach((s,i)=>{
+    const v=s.meta;
+    if(v==null||v<=0){pen=false;return;}
+    dPath+=(pen?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);
+    pen=true;
+  });
+  if(dPath)g+=`<path d="${dPath}" fill="none" stroke="#6B7280" stroke-width="2.5"/>`;
+  
+  sr.forEach((s,i)=>{
+    const v=s.meta;
+    if(v!=null&&v>0){
+      const x=X(i), ym=Y(v);
+      g+=`<circle cx="${x.toFixed(1)}" cy="${ym.toFixed(1)}" r="3.5" fill="#6B7280"/>`;
+      const yr=(s.real!=null&&s.real>0)?Y(s.real):null;
+      let metaLabelY=ym-10;
+      if(yr!=null&&Math.abs(ym-yr)<22){
+        metaLabelY=ym<yr?ym-12:ym+18;
+      }
+      g+=`<text x="${x.toFixed(1)}" y="${metaLabelY.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${short(v)}</text>`;
+    }
+  });
+  
   return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
 }
+
 function renderCharts(){
   const fl=id=>`<div class="filters" style="margin-bottom:10px">${msel(id)}</div>`;
   $('p-graf').innerHTML=`<div class="panel"><h2>Despesa / VGV por mês</h2>${fl('c1')}${lineChart(series(fget('c1').regs))}
