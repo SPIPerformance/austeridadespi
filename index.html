@@ -329,7 +329,7 @@ function lineChart(sr){
     if(s.o!=null){
       const yo=Y(s.o), yr=(s.r!=null)?Y(s.r):null;
       g+=`<circle cx="${x.toFixed(1)}" cy="${yo.toFixed(1)}" r="3.5" fill="#9AA0A6"/>`;
-      const metaY = (yr!=null && yr <= yo) ? yo + 16 : yo - 10;
+      const metaY = (yr!=null && yo < yr) ? Math.min(yo - 10, yr - 34) : (yr!=null && yr <= yo) ? yo + 15 : yo - 10;
       g+=`<text x="${x.toFixed(1)}" y="${metaY.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="#4B5563">${pct(s.o,2)}</text>`;
     }
     
@@ -406,11 +406,12 @@ function barChart(sr){
       const sFmt=short(v);
       
       if(s.real!=null && s.real > v){
-        // Meta fica DENTRO da barra vermelha do Real: exibe ABAIXO do ponto da Meta em texto BRANCO (#ffffff)
         g+=`<text x="${x.toFixed(1)}" y="${(ym+15).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">${sFmt}</text>`;
       } else {
-        // Meta acima do Real ou sem Real: texto cinza escuro ACIMA do ponto
-        g+=`<text x="${x.toFixed(1)}" y="${(ym-9).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${sFmt}</text>`;
+        const yr = (s.real!=null && s.real > 0) ? Y(s.real) : null;
+        const hBar = yr ? (y0 - yr) : 0;
+        const metaY = (yr && hBar < 28 && (yr - ym) < 20) ? (ym - 22) : (ym - 9);
+        g+=`<text x="${x.toFixed(1)}" y="${metaY.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${sFmt}</text>`;
       }
     }
   });
