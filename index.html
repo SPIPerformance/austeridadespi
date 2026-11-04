@@ -230,7 +230,7 @@ function ratios(n,v){
   } else if (v.M && v.M > 0) {
     o = n.meta / v.M;
   }
-  const r = (v.R && v.R > 0 && n.real > 0) ? (n.real / v.R) : null;
+  const r = (v.R && v.R > 0 && n.real != null) ? (n.real / v.R) : null;
   return [o, r];
 }
 
@@ -361,21 +361,24 @@ function barChart(sr){
   sr.forEach((s,i)=>{
     const x=X(i);
     g+=`<text x="${x.toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#646D7A">${MS[i]}/26</text>`;
-    if(s.real!=null && s.real > 0){
-      const yr=Y(s.real), hBar=y0-yr;
-      const isRed=s.meta!=null&&s.meta>0&&(s.real>s.meta);
-      const fillCol=isRed?'#E53935':'#1E9E5A';
-      g+=`<rect x="${(x-bw/2).toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${hBar.toFixed(1)}" rx="3" fill="${fillCol}"/>`;
-      
-      const sFmt=short(s.real);
-      if(s.meta!=null && s.real > s.meta){
-        // Real acima da Meta: valor do Real FICA ACIMA da barra em texto escuro
-        g+=`<text x="${x.toFixed(1)}" y="${(yr-8).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F242D">${sFmt}</text>`;
+    if(s.real!=null && (s.real > 0 || (s.vr!=null && s.vr > 0))){
+      if(s.real > 0){
+        const yr=Y(s.real), hBar=y0-yr;
+        const isRed=s.meta!=null&&s.meta>0&&(s.real>s.meta);
+        const fillCol=isRed?'#E53935':'#1E9E5A';
+        g+=`<rect x="${(x-bw/2).toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${hBar.toFixed(1)}" rx="3" fill="${fillCol}"/>`;
+        
+        const sFmt=short(s.real);
+        if(s.meta!=null && s.real > s.meta){
+          g+=`<text x="${x.toFixed(1)}" y="${(yr-8).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F242D">${sFmt}</text>`;
+        } else {
+          const textY=hBar>=28?yr+16:yr-8;
+          const textCol=hBar>=28?'#fff':'#1F242D';
+          g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${sFmt}</text>`;
+        }
       } else {
-        // Real dentro ou abaixo da Meta
-        const textY=hBar>=28?yr+16:yr-8;
-        const textCol=hBar>=28?'#fff':'#1F242D';
-        g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${sFmt}</text>`;
+        // Real = 0 (ex: Junho com VGV realizado), exibe rótulo 0,0 M acima do eixo
+        g+=`<text x="${x.toFixed(1)}" y="${(y0-8).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1E9E5A">0,0 M</text>`;
       }
     }
   });
