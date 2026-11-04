@@ -326,9 +326,9 @@ function lineChart(sr){
     
     if(s.o!=null){
       const yo=Y(s.o), yr=(s.r!=null)?Y(s.r):null;
-      // Posicionamento inteligente sem colisões com a caixa do Real
-      const metaY = (yr!=null && yr >= yo && Math.abs(yr - yo) < 25) ? yo - 12 : yo + 17;
-      g+=`<text x="${x.toFixed(1)}" y="${metaY.toFixed(1)}" text-anchor="middle" font-size="11" fill="#71717A">${pct(s.o,2)}</text>`;
+      g+=`<circle cx="${x.toFixed(1)}" cy="${yo.toFixed(1)}" r="3" fill="#9AA0A6"/>`;
+      const metaY = (yr!=null && yr <= yo) ? yo + 16 : yo - 10;
+      g+=`<text x="${x.toFixed(1)}" y="${metaY.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="#4B5563">${pct(s.o,2)}</text>`;
     }
     
     if(s.r!=null){
@@ -342,7 +342,6 @@ function lineChart(sr){
   return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
 }
 
-/* ===== Gráfico de Barras Refatorado (Despesa R$) ===== */
 function barChart(sr){
   const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null&&x>0);
   if(!validVals.length)return'<div class="note">Sem dados para esta regional.</div>';
@@ -367,11 +366,11 @@ function barChart(sr){
       
       const sFmt=short(s.real);
       if(s.meta!=null && s.real > s.meta){
-        // Real acima da Meta: valor do Real fica ACIMA da barra
-        g+=`<text x="${x.toFixed(1)}" y="${(yr-7).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F242D">${sFmt}</text>`;
+        // Real acima da Meta: valor do Real FICA ACIMA da barra em texto escuro
+        g+=`<text x="${x.toFixed(1)}" y="${(yr-8).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F242D">${sFmt}</text>`;
       } else {
         // Real dentro ou abaixo da Meta
-        const textY=hBar>=28?yr+16:yr-7;
+        const textY=hBar>=28?yr+16:yr-8;
         const textCol=hBar>=28?'#fff':'#1F242D';
         g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${sFmt}</text>`;
       }
@@ -388,7 +387,7 @@ function barChart(sr){
   });
   if(dPath)g+=`<path d="${dPath}" fill="none" stroke="#6B7280" stroke-width="2.5"/>`;
   
-  // 3. Pontos e rótulos da Meta (integrados organicamente aos dados, sem fundo branco)
+  // 3. Pontos e rótulos da Meta (perfeitamente posicionados sem colidir)
   sr.forEach((s,i)=>{
     const v=s.meta;
     if(v!=null && v > 0){
@@ -397,10 +396,11 @@ function barChart(sr){
       const sFmt=short(v);
       
       if(s.real!=null && s.real > v){
-        // Meta dentro da barra do Real: texto branco em negrito perfeitamente visivel sobre a barra
-        g+=`<text x="${x.toFixed(1)}" y="${(ym-8).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">${sFmt}</text>`;
+        // Meta fica DENTRO da barra vermelha do Real: exibe ABAIXO do ponto da Meta em texto BRANCO (#ffffff)
+        // Como o fundo e a barra vermelha, a legibilidade e 100% perfeita sem colidir com o Real acima da barra
+        g+=`<text x="${x.toFixed(1)}" y="${(ym+15).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">${sFmt}</text>`;
       } else {
-        // Meta acima do Real ou sem Real: texto cinza escuro acima do ponto
+        // Meta acima do Real ou sem Real (ex: jun/26): texto cinza escuro ACIMA do ponto
         g+=`<text x="${x.toFixed(1)}" y="${(ym-9).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${sFmt}</text>`;
       }
     }
