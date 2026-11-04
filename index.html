@@ -222,6 +222,7 @@ const msOf=(mode,m)=>mode==='mes'?[m]:Array.from({length:m},(_,i)=>i+1);
 */
 function ratios(n,v){
   if(!v||(!v.M && !v.R)) return [null, null];
+  if(!n || !n.meta || n.meta <= 0) return [null, null];
   const a = n.meta - n.com, b = n.com;
   let o = null;
   if (v.R && v.R > 0 && v.M && v.M > 0) {
@@ -298,8 +299,8 @@ function lineChart(sr){
   const validVals=sr.flatMap(s=>[s.o,s.r]).filter(x=>x!=null);
   if(!validVals.length)return'<div class="note">Sem VGV para esta regional.</div>';
   
-  const mx=Math.max(...validVals)*1.25||1.0;
-  const W=1000,H=360,L=40,R=30,T=45,B=65;
+  const mx=Math.max(...validVals)*1.40||1.0;
+  const W=1000,H=370,L=40,R=30,T=55,B=65;
   const iw=W-L-R,ih=H-T-B;
   const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx);
   
@@ -307,7 +308,7 @@ function lineChart(sr){
     let d='',pen=false;
     sr.forEach((s,i)=>{
       const v=s[k];
-      if(v==null)return;
+      if(v==null){pen=false;return;}
       d+=(pen?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);
       pen=true;
     });
@@ -346,8 +347,8 @@ function barChart(sr){
   const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null&&x>0);
   if(!validVals.length)return'<div class="note">Sem dados para esta regional.</div>';
   
-  const mx=Math.max(...validVals)*1.30||1.0;
-  const W=1000,H=360,L=40,R=30,T=45,B=65;
+  const mx=Math.max(...validVals)*1.38||1.0;
+  const W=1000,H=370,L=40,R=30,T=55,B=65;
   const iw=W-L-R,ih=H-T-B;
   const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx), bw=iw/12*.55;
   
