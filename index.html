@@ -213,11 +213,19 @@ function vgvFor(regs,ms){
   return{M,R};
 }
 const msOf=(mode,m)=>mode==='mes'?[m]:Array.from({length:m},(_,i)=>i+1);
+
+/* FÓRMULA ATUALIZADA (ORÇAMENTO FLEXÍVEL):
+   Meta % VGV = (Fixas Orçadas / VGV Real) + (Comissão Orçada / VGV Orçado)
+   - Despesas Fixas (a = n.meta - n.com): Ajustadas pelo VGV Real (v.R) para refletir o peso real da estrutura fixa.
+   - Comissão Orçada (b = n.com): Dividida pelo VGV Orçado (v.M) para manter a taxa % de comissão orçada FIXA.
+*/
 function ratios(n,v){
-  if(!v)return[null,null];
-  const a=n.meta-n.com,b=n.com;
-  const o=((a&&!v.M)||(b&&!v.R))?null:(a?a/v.M:0)+(b?b/v.R:0);
-  return[o,v.R?n.real/v.R:null];
+  if(!v||!v.M)return[null,null];
+  const a=n.meta-n.com, b=n.com;
+  // Se v.R existir e for > 0, usa (a / v.R) + (b / v.M). Se v.R for 0/ausente (meses futuros), usa (n.meta / v.M).
+  const o = (v.R && v.R > 0) ? (a / v.R) + (b / v.M) : (n.meta / v.M);
+  const r = (v.R && v.R > 0) ? (n.real / v.R) : null;
+  return [o, r];
 }
 
 /* ===== Farol da Tabela (0,10 p.p. = 0,0010 em decimal) ===== */
