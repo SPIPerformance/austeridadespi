@@ -344,10 +344,10 @@ function lineChart(sr){
 
 /* ===== Gráfico de Barras Refatorado (Despesa R$) ===== */
 function barChart(sr){
-  const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null);
+  const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null&&x>0);
   if(!validVals.length)return'<div class="note">Sem dados para esta regional.</div>';
   
-  const mx=Math.max(...validVals)*1.25||1.0;
+  const mx=Math.max(...validVals)*1.30||1.0;
   const W=1000,H=360,L=40,R=30,T=45,B=65;
   const iw=W-L-R,ih=H-T-B;
   const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx), bw=iw/12*.55;
@@ -355,41 +355,56 @@ function barChart(sr){
   const y0=Y(0);
   let g=`<line x1="${L}" x2="${W-R}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="#D1D5DB" stroke-width="1.5"/>`;
   
-  // Barras do Real
+  // 1. Barras do Real
   sr.forEach((s,i)=>{
     const x=X(i);
     g+=`<text x="${x.toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#646D7A">${MS[i]}/26</text>`;
     if(s.real!=null && s.real > 0){
       const yr=Y(s.real), hBar=y0-yr;
       const isRed=s.meta!=null&&s.meta>0&&(s.real>s.meta);
-      g+=`<rect x="${(x-bw/2).toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${hBar.toFixed(1)}" rx="3" fill="${isRed?'#E53935':'#1E9E5A'}"/>`;
-      const textY=hBar>28?yr+16:yr-6;
-      const textCol=hBar>28?'#fff':'#333';
-      g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${short(s.real)}</text>`;
+      const fillCol=isRed?'#E53935':'#1E9E5A';
+      g+=`<rect x="${(x-bw/2).toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${hBar.toFixed(1)}" rx="3" fill="${fillCol}"/>`;
+      
+      const sFmt=short(s.real);
+      if(s.meta!=null && s.real > s.meta){
+        // Real acima da Meta: valor do Real FICA ACIMA da barra
+        g+=`<text x="${x.toFixed(1)}" y="${(yr-7).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F242D">${sFmt}</text>`;
+      } else {
+        // Real dentro ou abaixo da Meta: valor dentro da barra se couber, senao acima
+        const textY=hBar>=28?yr+16:yr-7;
+        const textCol=hBar>=28?'#fff':'#1F242D';
+        g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${sFmt}</text>`;
+      }
     }
   });
   
-  // Linha da Meta
+  // 2. Linha da Meta (conecta apenas meses com meta > 0)
   let dPath='',pen=false;
   sr.forEach((s,i)=>{
     const v=s.meta;
-    if(v==null){pen=false;return;}
+    if(v==null||v<=0){pen=false;return;}
     dPath+=(pen?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);
     pen=true;
   });
   if(dPath)g+=`<path d="${dPath}" fill="none" stroke="#6B7280" stroke-width="2.5"/>`;
   
+  // 3. Pontos e rótulos da Meta (apenas para meses com meta > 0)
   sr.forEach((s,i)=>{
     const v=s.meta;
     if(v!=null && v > 0){
       const x=X(i), ym=Y(v);
       g+=`<circle cx="${x.toFixed(1)}" cy="${ym.toFixed(1)}" r="3.5" fill="#6B7280"/>`;
-      const yr=(s.real!=null&&s.real>0)?Y(s.real):null;
-      let metaLabelY=ym-10;
-      if(yr!=null&&Math.abs(ym-yr)<22){
-        metaLabelY=ym<yr?ym-12:ym+18;
+      const sFmt=short(v);
+      
+      if(s.real!=null && s.real > v){
+        // Meta dentro da barra do Real: exibe pílula branca com borda para nao colidir nem sumir
+        const tw=sFmt.length*7+8;
+        g+=`<rect x="${(x-tw/2).toFixed(1)}" y="${(ym-21).toFixed(1)}" width="${tw.toFixed(1)}" height="16" rx="3" fill="#ffffff" stroke="#D1D5DB" stroke-width="1"/>`;
+        g+=`<text x="${x.toFixed(1)}" y="${(ym-9).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#374151">${sFmt}</text>`;
+      } else {
+        // Meta acima do Real: texto cinza normal acima do ponto
+        g+=`<text x="${x.toFixed(1)}" y="${(ym-10).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${sFmt}</text>`;
       }
-      g+=`<text x="${x.toFixed(1)}" y="${metaLabelY.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${short(v)}</text>`;
     }
   });
   
