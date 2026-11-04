@@ -299,8 +299,9 @@ function lineChart(sr){
   const validVals=sr.flatMap(s=>[s.o,s.r]).filter(x=>x!=null);
   if(!validVals.length)return'<div class="note">Sem VGV para esta regional.</div>';
   
-  const mx=Math.max(...validVals)*1.40||1.0;
-  const W=1000,H=370,L=40,R=30,T=55,B=65;
+  const maxVal=Math.max(...validVals);
+  const mx=maxVal*1.55||1.0;
+  const W=1000,H=380,L=40,R=30,T=65,B=60;
   const iw=W-L-R,ih=H-T-B;
   const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx);
   
@@ -327,7 +328,7 @@ function lineChart(sr){
     
     if(s.o!=null){
       const yo=Y(s.o), yr=(s.r!=null)?Y(s.r):null;
-      g+=`<circle cx="${x.toFixed(1)}" cy="${yo.toFixed(1)}" r="3" fill="#9AA0A6"/>`;
+      g+=`<circle cx="${x.toFixed(1)}" cy="${yo.toFixed(1)}" r="3.5" fill="#9AA0A6"/>`;
       const metaY = (yr!=null && yr <= yo) ? yo + 16 : yo - 10;
       g+=`<text x="${x.toFixed(1)}" y="${metaY.toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="#4B5563">${pct(s.o,2)}</text>`;
     }
@@ -335,20 +336,21 @@ function lineChart(sr){
     if(s.r!=null){
       const yr=Y(s.r), t=pct(s.r,2), w=t.length*7.2+10;
       const isRed=s.o!=null&&(s.r-s.o>0.00005);
-      g+=`<circle cx="${x.toFixed(1)}" cy="${yr.toFixed(1)}" r="3.5" fill="#5F6368"/>`;
+      g+=`<circle cx="${x.toFixed(1)}" cy="${yr.toFixed(1)}" r="4" fill="#5F6368"/>`;
       g+=`<rect x="${(x-w/2).toFixed(1)}" y="${(yr-26).toFixed(1)}" width="${w.toFixed(1)}" height="18" rx="3" fill="${isRed?'#E53935':'#1E9E5A'}"/>`;
       g+=`<text x="${x.toFixed(1)}" y="${(yr-13).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${t}</text>`;
     }
   });
-  return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
+  return`<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible">${g}</svg>`;
 }
 
 function barChart(sr){
   const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null&&x>0);
   if(!validVals.length)return'<div class="note">Sem dados para esta regional.</div>';
   
-  const mx=Math.max(...validVals)*1.38||1.0;
-  const W=1000,H=370,L=40,R=30,T=55,B=65;
+  const maxVal=Math.max(...validVals);
+  const mx=maxVal*1.50||1.0;
+  const W=1000,H=380,L=40,R=30,T=65,B=60;
   const iw=W-L-R,ih=H-T-B;
   const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx), bw=iw/12*.55;
   
@@ -388,7 +390,7 @@ function barChart(sr){
   });
   if(dPath)g+=`<path d="${dPath}" fill="none" stroke="#6B7280" stroke-width="2.5"/>`;
   
-  // 3. Pontos e rótulos da Meta (perfeitamente posicionados sem colidir)
+  // 3. Pontos e rótulos da Meta
   sr.forEach((s,i)=>{
     const v=s.meta;
     if(v!=null && v > 0){
@@ -398,7 +400,6 @@ function barChart(sr){
       
       if(s.real!=null && s.real > v){
         // Meta fica DENTRO da barra vermelha do Real: exibe ABAIXO do ponto da Meta em texto BRANCO (#ffffff)
-        // Como o fundo e a barra vermelha, a legibilidade e 100% perfeita sem colidir com o Real acima da barra
         g+=`<text x="${x.toFixed(1)}" y="${(ym+15).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">${sFmt}</text>`;
       } else {
         // Meta acima do Real ou sem Real (ex: jun/26): texto cinza escuro ACIMA do ponto
@@ -407,7 +408,7 @@ function barChart(sr){
     }
   });
   
-  return`<svg viewBox="0 0 ${W} ${H}" width="100%">${g}</svg>`;
+  return`<svg viewBox="0 0 ${W} ${H}" width="100%" style="overflow:visible">${g}</svg>`;
 }
 
 function renderCharts(){
