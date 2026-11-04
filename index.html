@@ -229,7 +229,7 @@ function ratios(n,v){
   } else if (v.M && v.M > 0) {
     o = n.meta / v.M;
   }
-  const r = (v.R && v.R > 0) ? (n.real / v.R) : null;
+  const r = (v.R && v.R > 0 && n.real > 0) ? (n.real / v.R) : null;
   return [o, r];
 }
 
@@ -307,7 +307,7 @@ function lineChart(sr){
     let d='',pen=false;
     sr.forEach((s,i)=>{
       const v=s[k];
-      if(v==null){pen=false;return;}
+      if(v==null)return;
       d+=(pen?'L':'M')+X(i).toFixed(1)+','+Y(v).toFixed(1);
       pen=true;
     });
@@ -367,10 +367,10 @@ function barChart(sr){
       
       const sFmt=short(s.real);
       if(s.meta!=null && s.real > s.meta){
-        // Real acima da Meta: valor do Real FICA ACIMA da barra
+        // Real acima da Meta: valor do Real fica ACIMA da barra
         g+=`<text x="${x.toFixed(1)}" y="${(yr-7).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F242D">${sFmt}</text>`;
       } else {
-        // Real dentro ou abaixo da Meta: valor dentro da barra se couber, senao acima
+        // Real dentro ou abaixo da Meta
         const textY=hBar>=28?yr+16:yr-7;
         const textCol=hBar>=28?'#fff':'#1F242D';
         g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${sFmt}</text>`;
@@ -388,7 +388,7 @@ function barChart(sr){
   });
   if(dPath)g+=`<path d="${dPath}" fill="none" stroke="#6B7280" stroke-width="2.5"/>`;
   
-  // 3. Pontos e rótulos da Meta (apenas para meses com meta > 0)
+  // 3. Pontos e rótulos da Meta (integrados organicamente aos dados, sem fundo branco)
   sr.forEach((s,i)=>{
     const v=s.meta;
     if(v!=null && v > 0){
@@ -397,13 +397,11 @@ function barChart(sr){
       const sFmt=short(v);
       
       if(s.real!=null && s.real > v){
-        // Meta dentro da barra do Real: exibe pílula branca com borda para nao colidir nem sumir
-        const tw=sFmt.length*7+8;
-        g+=`<rect x="${(x-tw/2).toFixed(1)}" y="${(ym-21).toFixed(1)}" width="${tw.toFixed(1)}" height="16" rx="3" fill="#ffffff" stroke="#D1D5DB" stroke-width="1"/>`;
-        g+=`<text x="${x.toFixed(1)}" y="${(ym-9).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#374151">${sFmt}</text>`;
+        // Meta dentro da barra do Real: texto branco em negrito perfeitamente visivel sobre a barra
+        g+=`<text x="${x.toFixed(1)}" y="${(ym-8).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">${sFmt}</text>`;
       } else {
-        // Meta acima do Real: texto cinza normal acima do ponto
-        g+=`<text x="${x.toFixed(1)}" y="${(ym-10).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${sFmt}</text>`;
+        // Meta acima do Real ou sem Real: texto cinza escuro acima do ponto
+        g+=`<text x="${x.toFixed(1)}" y="${(ym-9).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${sFmt}</text>`;
       }
     }
   });
