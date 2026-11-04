@@ -299,11 +299,11 @@ function lineChart(sr){
   const validVals=sr.flatMap(s=>[s.o,s.r]).filter(x=>x!=null);
   if(!validVals.length)return'<div class="note">Sem VGV para esta regional.</div>';
   
-  const maxVal=Math.max(...validVals);
-  const mx=maxVal*1.55||1.0;
+  const maxVal=Math.max(...validVals), minVal=Math.min(0, ...validVals);
+  const mx=(maxVal>0?maxVal*1.45:1.0), mn=(minVal<0?minVal*1.45:0);
   const W=1000,H=380,L=40,R=30,T=65,B=60;
   const iw=W-L-R,ih=H-T-B;
-  const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx);
+  const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-(v-mn)/(mx-mn));
   
   const path=k=>{
     let d='',pen=false;
@@ -345,14 +345,14 @@ function lineChart(sr){
 }
 
 function barChart(sr){
-  const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null&&x>0);
+  const validVals=sr.flatMap(s=>[s.meta,s.real]).filter(x=>x!=null);
   if(!validVals.length)return'<div class="note">Sem dados para esta regional.</div>';
   
-  const maxVal=Math.max(...validVals);
-  const mx=maxVal*1.50||1.0;
+  const maxVal=Math.max(...validVals), minVal=Math.min(0, ...validVals);
+  const mx=(maxVal>0?maxVal*1.45:1.0), mn=(minVal<0?minVal*1.45:0);
   const W=1000,H=380,L=40,R=30,T=65,B=60;
   const iw=W-L-R,ih=H-T-B;
-  const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-v/mx), bw=iw/12*.55;
+  const X=i=>L+iw*(i+.5)/12, Y=v=>T+ih*(1-(v-mn)/(mx-mn)), bw=iw/12*.55;
   
   const y0=Y(0);
   let g=`<line x1="${L}" x2="${W-R}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="#D1D5DB" stroke-width="1.5"/>`;
@@ -361,14 +361,14 @@ function barChart(sr){
   sr.forEach((s,i)=>{
     const x=X(i);
     g+=`<text x="${x.toFixed(1)}" y="${H-15}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#646D7A">${MS[i]}/26</text>`;
-    if(s.real!=null && (s.real > 0 || (s.vr!=null && s.vr > 0))){
+    if(s.real!=null){
+      const yr=Y(s.real), sFmt=short(s.real);
       if(s.real > 0){
-        const yr=Y(s.real), hBar=y0-yr;
+        const hBar=y0-yr;
         const isRed=s.meta!=null&&s.meta>0&&(s.real>s.meta);
         const fillCol=isRed?'#E53935':'#1E9E5A';
         g+=`<rect x="${(x-bw/2).toFixed(1)}" y="${yr.toFixed(1)}" width="${bw.toFixed(1)}" height="${hBar.toFixed(1)}" rx="3" fill="${fillCol}"/>`;
         
-        const sFmt=short(s.real);
         if(s.meta!=null && s.real > s.meta){
           g+=`<text x="${x.toFixed(1)}" y="${(yr-8).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F242D">${sFmt}</text>`;
         } else {
@@ -376,9 +376,13 @@ function barChart(sr){
           const textCol=hBar>=28?'#fff':'#1F242D';
           g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${sFmt}</text>`;
         }
-      } else {
-        // Real = 0 (ex: Junho com VGV realizado), exibe rótulo 0,0 M acima do eixo
-        g+=`<text x="${x.toFixed(1)}" y="${(y0-8).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1E9E5A">0,0 M</text>`;
+      } else if(s.real < 0){
+        // Barra negativa (estorno / receita liquida de despesa)
+        const hBar=yr-y0;
+        g+=`<rect x="${(x-bw/2).toFixed(1)}" y="${y0.toFixed(1)}" width="${bw.toFixed(1)}" height="${hBar.toFixed(1)}" rx="3" fill="#1E9E5A"/>`;
+        const textY=hBar>=24?y0+16:yr+15;
+        const textCol=hBar>=24?'#fff':'#1E9E5A';
+        g+=`<text x="${x.toFixed(1)}" y="${textY.toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="${textCol}">${sFmt}</text>`;
       }
     }
   });
@@ -405,7 +409,7 @@ function barChart(sr){
         // Meta fica DENTRO da barra vermelha do Real: exibe ABAIXO do ponto da Meta em texto BRANCO (#ffffff)
         g+=`<text x="${x.toFixed(1)}" y="${(ym+15).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">${sFmt}</text>`;
       } else {
-        // Meta acima do Real ou sem Real (ex: jun/26): texto cinza escuro ACIMA do ponto
+        // Meta acima do Real ou sem Real: texto cinza escuro ACIMA do ponto
         g+=`<text x="${x.toFixed(1)}" y="${(ym-9).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="#374151">${sFmt}</text>`;
       }
     }
